@@ -19,14 +19,16 @@ use tower_http::services::ServeDir;
 #[derive(Debug, FromRef, Clone)]
 struct State {
     map: Arc<RwLock<Map>>,
+    config: Arc<Config>,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let config = Config::load()?;
+    let config = Arc::new(Config::load()?);
 
     let state = State {
         map: Arc::new(RwLock::new(Map::new(config.map_size))),
+        config: config.clone(),
     };
 
     tracing_subscriber::fmt().init();

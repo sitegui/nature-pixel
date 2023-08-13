@@ -1,4 +1,5 @@
 {
   "port": 8000,
-  "map_size": 10
+  "map_size": 10,
+  "long_pooling_seconds": 30
 }

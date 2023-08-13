@@ -6,6 +6,7 @@ use std::fs;
 pub struct Config {
     pub port: u16,
     pub map_size: usize,
+    pub long_pooling_seconds: u64,
 }
 
 impl Config {

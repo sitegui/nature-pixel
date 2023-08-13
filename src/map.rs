@@ -2,12 +2,15 @@ use crate::cell::Cell;
 use crate::cell_color::CellColor;
 use anyhow::{Context, Result};
 use ndarray::Array2;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tokio::sync::Notify;
 
 #[derive(Debug)]
 pub struct Map {
-    version_id: u64,
+    version_id: String,
     cells: Array2<Cell>,
+    change_notifier: Arc<Notify>,
 }
 
 impl Map {
@@ -15,6 +18,7 @@ impl Map {
         Map {
             version_id: Self::now(),
             cells: Array2::from_elem((size, size), Cell::Empty),
+            change_notifier: Default::default(),
         }
     }
 
@@ -26,8 +30,8 @@ impl Map {
         &self.cells
     }
 
-    pub fn version_id(&self) -> u64 {
-        self.version_id
+    pub fn version_id(&self) -> &str {
+        &self.version_id
     }
 
     pub fn set_cell_color(&mut self, x: usize, y: usize, color: CellColor) -> Result<()> {
@@ -37,14 +41,25 @@ impl Map {
             .context("invalid cell position")?;
 
         cell.with_color(color)?;
+        self.notify_update();
 
         Ok(())
     }
 
-    fn now() -> u64 {
+    pub fn change_notifier(&self) -> &Arc<Notify> {
+        &self.change_notifier
+    }
+
+    fn now() -> String {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("must be after epoch")
-            .as_secs()
+            .as_nanos()
+            .to_string()
+    }
+
+    fn notify_update(&mut self) {
+        self.version_id = Self::now();
+        self.change_notifier.notify_waiters();
     }
 }

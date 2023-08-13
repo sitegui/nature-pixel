@@ -48,12 +48,6 @@ class InteractiveCanvas {
         this.context.scale(this.scale, this.scale)
     }
 
-    /// Return the `{x, y}` coordinates in the virtual unit square coordinates
-    convertToUnit(clientX, clientY) {
-        const anchor = DragAnchor._fromCanvas(this, null, clientX, clientY)
-        return {x: anchor.x, y: anchor.y}
-    }
-
     _getDragAnchor(id) {
         if (this.dragAnchor1 && this.dragAnchor1.id === id) {
             return this.dragAnchor1

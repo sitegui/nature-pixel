@@ -8,7 +8,7 @@ class PixelMap {
 
         this.refreshEndpoint = '/api/map'
         this.refreshInterval = 1e3
-        this.longPoolingTimeout = 30e3
+        this.longPoolingTimeout = 35e3
 
         this.setEndpoint = '/api/cell'
         this.pendingCellChanges = []
