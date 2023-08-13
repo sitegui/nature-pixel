@@ -103,7 +103,8 @@ class InteractiveCanvas {
         if (event.touches.length === 1) {
             const anchor = this._getDragAnchor(event.touches[0].identifier)
             if (anchor) {
-                this._padForAnchor(anchor, event)
+                const newAnchor = DragAnchor.fromTouch(this, event.touches[0])
+                this._padForAnchor(anchor, newAnchor)
             }
         } else if (event.touches.length === 2) {
             const anchor1 = this._getDragAnchor(event.touches[0].identifier)
