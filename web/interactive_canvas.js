@@ -26,8 +26,8 @@ class InteractiveCanvas {
         this.initialPinchScale = 0
         this.possibleClick = true
 
-        this.maxScale = 5 * this.scale
-        this.minScale = 0.1 * this.scale
+        this.maxScale = 10 * this.scale
+        this.minScale = this.scale
         this.scrollSensitivity = 0.0005
 
         this.element.addEventListener('mousedown', event => this._onMouseDown(event))
@@ -90,7 +90,7 @@ class InteractiveCanvas {
     _onWheel(event) {
         const anchor = DragAnchor.fromMouse(this, event)
 
-        const amount = 1 + event.deltaY * this.scrollSensitivity
+        const amount = 1 - event.deltaY * this.scrollSensitivity
         const newScale = Math.max(this.minScale, Math.min(this.maxScale, this.scale * amount))
         this.x -= anchor.x * (newScale - this.scale)
         this.y -= anchor.y * (newScale - this.scale)

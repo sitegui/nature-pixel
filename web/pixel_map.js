@@ -1,8 +1,11 @@
 // A wrapper around a matrix of colored pixels that continuously update itself from the server
 class PixelMap {
-    constructor() {
+    constructor(onload) {
+        this.onload = onload
+
         this.size = 100
         this.colors = ['white']
+        this.availableColors = []
         this.cellColorIndexes = new Array(this.size * this.size).fill(0)
         this.versionId = null
 
@@ -27,13 +30,19 @@ class PixelMap {
         }).then(response => {
             return response.json()
         }).then(response => {
+            const loaded = this.versionId === null
             this.versionId = response.version_id
             this.size = response.size
             this.colors = response.colors
+            this.availableColors = response.available_colors
             this.cellColorIndexes = response.cell_color_indexes
 
             for (const change of this.pendingCellChanges) {
                 this.cellColorIndexes[change.yIndex * this.size + change.xIndex] = change.colorIndex
+            }
+
+            if (loaded) {
+                this.onload()
             }
         }).catch(error => {
             console.error('Failed to update PixelMap', error)
