@@ -7,6 +7,13 @@ pub struct Config {
     pub port: u16,
     pub map_size: usize,
     pub long_pooling_seconds: u64,
+    pub water_min_cycle_seconds: u64,
+    pub water_max_cycle_seconds: u64,
+    pub water_evaporation_ratio: f64,
+    pub water_evaporation_tick_seconds: u64,
+    pub water_rain_ratio: f64,
+    pub water_rain_tick_seconds: u64,
+    pub water_max_rain_radius: usize,
 }
 
 impl Config {

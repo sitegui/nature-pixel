@@ -17,7 +17,7 @@ impl Map {
     pub fn new(size: usize) -> Self {
         Map {
             version_id: Self::now(),
-            cells: Array2::from_elem((size, size), Cell::Empty),
+            cells: Array2::from_elem((size, size), Cell::empty()),
             change_notifier: Default::default(),
         }
     }
@@ -28,6 +28,10 @@ impl Map {
 
     pub fn cells(&self) -> &Array2<Cell> {
         &self.cells
+    }
+
+    pub fn cells_mut(&mut self) -> &mut Array2<Cell> {
+        &mut self.cells
     }
 
     pub fn version_id(&self) -> &str {

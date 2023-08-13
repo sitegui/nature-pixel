@@ -1,5 +1,13 @@
 {
   "port": 8000,
   "map_size": 10,
-  "long_pooling_seconds": 30
+  "long_pooling_seconds": 30,
+  "detect_new_livings_seconds": 5,
+  "water_min_cycle_seconds":  180,
+  "water_max_cycle_seconds": 300,
+  "water_evaporation_ratio":  0.5,
+  "water_evaporation_tick_seconds": 10,
+  "water_rain_ratio":  0.5,
+  "water_rain_tick_seconds": 30,
+  "water_max_rain_radius": 5
 }
