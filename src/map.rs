@@ -1,4 +1,6 @@
 use crate::cell::Cell;
+use crate::cell_color::CellColor;
+use anyhow::{Context, Result};
 use ndarray::Array2;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -26,6 +28,17 @@ impl Map {
 
     pub fn version_id(&self) -> u64 {
         self.version_id
+    }
+
+    pub fn set_cell_color(&mut self, x: usize, y: usize, color: CellColor) -> Result<()> {
+        let cell = self
+            .cells
+            .get_mut([y, x])
+            .context("invalid cell position")?;
+
+        cell.with_color(dbg!(color))?;
+
+        Ok(())
     }
 
     fn now() -> u64 {

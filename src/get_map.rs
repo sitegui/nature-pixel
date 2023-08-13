@@ -3,7 +3,7 @@ use crate::map::Map;
 use axum::extract::{Query, State};
 use axum::Json;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Deserialize)]
 pub struct Request {
@@ -20,10 +20,9 @@ pub struct Response {
 
 pub async fn get_map(
     Query(request): Query<Request>,
-    State(map): State<Arc<Map>>,
+    State(map): State<Arc<RwLock<Map>>>,
 ) -> Json<Response> {
-    tracing::info!("version_id = {:?}", request.last_version_id);
-
+    let map = map.read().unwrap();
     Json(Response {
         version_id: map.version_id(),
         size: map.size(),

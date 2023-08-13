@@ -8,6 +8,16 @@ pub struct WebError {
     error: Error,
 }
 
+impl WebError {
+    pub fn new(status: StatusCode, error: Error) -> Self {
+        Self { status, error }
+    }
+
+    pub fn bad_request<E: Into<Error>>(error: E) -> Self {
+        WebError::new(StatusCode::BAD_REQUEST, error.into())
+    }
+}
+
 impl<E: Into<Error>> From<E> for WebError {
     fn from(value: E) -> Self {
         WebError {
