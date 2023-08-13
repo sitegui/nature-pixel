@@ -37,9 +37,15 @@ class PixelMap {
             this.availableColors = response.available_colors
             this.cellColorIndexes = response.cell_color_indexes
 
+            const newPendingCellChanges = []
             for (const change of this.pendingCellChanges) {
                 this.cellColorIndexes[change.yIndex * this.size + change.xIndex] = change.colorIndex
+
+                if (change.newVersion === null || change.newVersion > this.versionId) {
+                    newPendingCellChanges.push(change)
+                }
             }
+            this.pendingCellChanges = newPendingCellChanges
 
             if (loaded) {
                 this.onload()
@@ -57,8 +63,8 @@ class PixelMap {
             throw new Error('Invalid color')
         }
 
-        const changeId = Date.now()
-        this.pendingCellChanges.push({changeId, xIndex, yIndex, colorIndex})
+        const change = {xIndex, yIndex, colorIndex, newVersion: null}
+        this.pendingCellChanges.push(change)
         this.cellColorIndexes[yIndex * this.size + xIndex] = colorIndex
 
         const url = this.setEndpoint +
@@ -67,8 +73,13 @@ class PixelMap {
             '&color=' + encodeURIComponent(color)
         fetch(url, {
             method: 'POST'
-        }).finally(() => {
-            const changeIndex = this.pendingCellChanges.findIndex(change => change.changeId === changeId)
+        }).then(response => {
+            return response.json()
+        }).then(response => {
+            change.newVersion = response.version_id
+        }).catch(error => {
+            console.error('Failed to set cell', error)
+            const changeIndex = this.pendingCellChanges.indexOf(change)
             if (changeIndex !== -1) {
                 this.pendingCellChanges.splice(changeIndex, 1)
             }

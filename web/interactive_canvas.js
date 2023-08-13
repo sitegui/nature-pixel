@@ -113,6 +113,7 @@ class InteractiveCanvas {
             this.dragAnchor2 = null
             this.possibleClick = false
         }
+        event.preventDefault()
     }
 
     _onTouchMove(event) {
@@ -144,6 +145,7 @@ class InteractiveCanvas {
         }
 
         this.possibleClick = false
+        event.preventDefault()
     }
 
     _startPinch(anchor1, anchor2) {
@@ -161,6 +163,7 @@ class InteractiveCanvas {
 
         this.dragAnchor1 = null
         this.dragAnchor2 = null
+        event.preventDefault()
     }
 }
 
