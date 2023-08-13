@@ -19,7 +19,7 @@ pub struct WaterSystem {
     max_rain_radius: usize,
     map: Arc<RwLock<Map>>,
     rng: SmallRng,
-    atmosphere_water: usize,
+    atmosphere_water: i32,
 }
 
 impl WaterSystem {
@@ -34,21 +34,21 @@ impl WaterSystem {
             max_rain_radius: config.water_max_rain_radius,
             map,
             rng: SmallRng::from_entropy(),
-            atmosphere_water: 0,
+            atmosphere_water: config.water_in_atmosphere,
         }
     }
 
     pub async fn run(mut self) {
         loop {
-            self.evaporate().await;
             self.rain().await;
+            self.evaporate().await;
         }
     }
 
     async fn evaporate(&mut self) {
         let cycle_duration = self.rng.gen_range(self.min_cycle..=self.max_cycle);
         let num_ticks =
-            (cycle_duration.as_secs_f64() / self.evaporation_tick.as_secs_f64()).round() as i32;
+            (cycle_duration.as_secs_f64() / self.evaporation_tick.as_secs_f64()).ceil() as i32;
         let ratio_per_tick = 1.0 - (1.0 - self.evaporation_ratio).powf(1.0 / num_ticks as f64);
         tracing::info!(
             "Will evaporate {}% of the water each tick",
@@ -72,6 +72,8 @@ impl WaterSystem {
                         self.atmosphere_water += 1;
                     }
                 }
+
+                map.notify_update();
             }
 
             time::sleep(self.evaporation_tick).await;
@@ -80,8 +82,7 @@ impl WaterSystem {
 
     async fn rain(&mut self) {
         let cycle_duration = self.rng.gen_range(self.min_cycle..=self.max_cycle);
-        let num_ticks =
-            (cycle_duration.as_secs_f64() / self.rain_tick.as_secs_f64()).round() as i32;
+        let num_ticks = (cycle_duration.as_secs_f64() / self.rain_tick.as_secs_f64()).ceil() as i32;
         let ratio_per_tick = 1.0 - (1.0 - self.rain_ratio).powf(1.0 / num_ticks as f64);
         tracing::info!(
             "Will rain {}% of the water each tick",
@@ -93,24 +94,36 @@ impl WaterSystem {
                 let mut map = self.map.write().unwrap();
 
                 let mut remaining_rain =
-                    (self.atmosphere_water as f64 * ratio_per_tick).round() as i32;
+                    (self.atmosphere_water as f64 * ratio_per_tick).ceil() as i32;
                 let mut radius = 0;
                 let center_x = self.rng.gen_range(0..map.size());
                 let center_y = self.rng.gen_range(0..map.size());
                 while remaining_rain > 0 && radius <= self.max_rain_radius {
                     let mut candidates = Self::circle(center_x, center_y, radius, map.size());
                     candidates.shuffle(&mut self.rng);
-                    Self::add_rain(&mut map, &candidates, &mut remaining_rain);
+                    Self::add_rain(
+                        &mut map,
+                        &candidates,
+                        &mut remaining_rain,
+                        &mut self.atmosphere_water,
+                    );
 
                     radius += 1;
                 }
+
+                map.notify_update();
             }
 
             time::sleep(self.rain_tick).await;
         }
     }
 
-    fn add_rain(map: &mut Map, candidates: &[[usize; 2]], remaining_rain: &mut i32) {
+    fn add_rain(
+        map: &mut Map,
+        candidates: &[[usize; 2]],
+        remaining_rain: &mut i32,
+        atmosphere_water: &mut i32,
+    ) {
         for &candidate in candidates {
             if *remaining_rain <= 0 {
                 break;
@@ -125,6 +138,7 @@ impl WaterSystem {
 
             cell.set_water(wetter);
             *remaining_rain -= 1;
+            *atmosphere_water -= 1;
         }
     }
 

@@ -14,6 +14,7 @@ pub struct Config {
     pub water_rain_ratio: f64,
     pub water_rain_tick_seconds: u64,
     pub water_max_rain_radius: usize,
+    pub water_in_atmosphere: i32,
 }
 
 impl Config {

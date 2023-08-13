@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
         .fallback_service(serve_dir)
         .with_state(state);
 
-    tokio::spawn(spawn_ecosystem(config.clone(), map));
+    spawn_ecosystem(config.clone(), map);
 
     let addr = ([0, 0, 0, 0], config.port).try_into()?;
     tracing::info!("Listening on {}", config.port);

@@ -62,7 +62,7 @@ impl Map {
             .to_string()
     }
 
-    fn notify_update(&mut self) {
+    pub fn notify_update(&mut self) {
         self.version_id = Self::now();
         self.change_notifier.notify_waiters();
     }
