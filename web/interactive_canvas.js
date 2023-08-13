@@ -3,17 +3,17 @@
 // A wrapper around canvas that allows the user to pan and zoom using the mouse and the finger.
 // Content drawn in the unit square from (0, 0) to (1, 1) will initially fit the whole canvas
 class InteractiveCanvas {
-    constructor(canvas) {
-        this.canvas = canvas
+    constructor(element) {
+        this.element = element
 
-        const boundingRect = this.canvas.getBoundingClientRect()
-        this.canvas.width = boundingRect.width
-        this.canvas.height = boundingRect.height
-        this.scale = Math.min(this.canvas.width, this.canvas.height)
-        this.x = (this.canvas.width - this.scale) / 2
-        this.y = (this.canvas.height - this.scale) / 2
+        const boundingRect = this.element.getBoundingClientRect()
+        this.element.width = boundingRect.width
+        this.element.height = boundingRect.height
+        this.scale = Math.min(this.element.width, this.element.height)
+        this.x = (this.element.width - this.scale) / 2
+        this.y = (this.element.height - this.scale) / 2
 
-        this.context = this.canvas.getContext('2d')
+        this.context = this.element.getContext('2d')
 
         this.dragAnchor1 = null
         this.dragAnchor2 = null
@@ -24,20 +24,20 @@ class InteractiveCanvas {
         this.minScale = 0.1 * this.scale
         this.scrollSensitivity = 0.0005
 
-        this.canvas.addEventListener('mousedown', event => this._onMouseDown(event))
-        this.canvas.addEventListener('mousemove', event => this._onMouseMove(event))
-        this.canvas.addEventListener('mouseup', () => this._onMouseUp())
-        this.canvas.addEventListener('wheel', event => this._onWheel(event))
+        this.element.addEventListener('mousedown', event => this._onMouseDown(event))
+        this.element.addEventListener('mousemove', event => this._onMouseMove(event))
+        this.element.addEventListener('mouseup', () => this._onMouseUp())
+        this.element.addEventListener('wheel', event => this._onWheel(event))
 
-        this.canvas.addEventListener('touchstart', event => this._onTouchStart(event))
-        this.canvas.addEventListener('touchmove', event => this._onTouchMove(event))
-        this.canvas.addEventListener('touchend', () => this._onTouchEnd())
+        this.element.addEventListener('touchstart', event => this._onTouchStart(event))
+        this.element.addEventListener('touchmove', event => this._onTouchMove(event))
+        this.element.addEventListener('touchend', () => this._onTouchEnd())
     }
 
     // Prepare the context transform matrix so that drawing in the unit square draws into the desired region
     prepareDraw() {
         this.context.resetTransform()
-        this.context.clearRect(0, 0, this.canvas.width, this.canvas.height)
+        this.context.clearRect(0, 0, this.element.width, this.element.height)
         this.context.translate(this.x, this.y)
         this.context.scale(this.scale, this.scale)
     }
@@ -161,7 +161,7 @@ class DragAnchor {
     }
 
     static _fromCanvas(canvas, id, clientX, clientY) {
-        const boundingRect = canvas.canvas.getBoundingClientRect()
+        const boundingRect = canvas.element.getBoundingClientRect()
         const elementX = clientX - boundingRect.x
         const elementY = clientY - boundingRect.y
         const x = (elementX - canvas.x) / canvas.scale
@@ -185,22 +185,3 @@ class DragAnchor {
         return Math.hypot(dx, dy)
     }
 }
-
-const gui = new InteractiveCanvas(document.getElementById('canvas'))
-
-function drawGui() {
-    gui.prepareDraw()
-
-    gui.context.fillStyle = 'yellow'
-    gui.context.fillRect(0, 0, 0.5, 0.5)
-    gui.context.fillStyle = 'green'
-    gui.context.fillRect(0.5, 0, 0.5, 0.5)
-    gui.context.fillStyle = 'blue'
-    gui.context.fillRect(0, 0.5, 0.5, 0.5)
-    gui.context.fillStyle = 'black'
-    gui.context.fillRect(0.5, 0.5, 0.5, 0.5)
-
-    requestAnimationFrame(drawGui)
-}
-
-drawGui()
