@@ -1,10 +1,15 @@
 'use strict'
 
-// A wrapper around canvas that allows the user to pan and zoom using the mouse and the finger.
-// Content drawn in the unit square from (0, 0) to (1, 1) will initially fit the whole canvas
+/**
+ * A wrapper around canvas that allows the user to pan and zoom using the mouse and the finger.
+ * Content drawn in the unit square from (0, 0) to (1, 1) will initially fit the whole canvas
+ *
+ * The `onclick` callback is called with the virtual units coordinates `x` and `y` of where the click was done
+ */
 class InteractiveCanvas {
-    constructor(element) {
+    constructor(element, onclick) {
         this.element = element
+        this.onclick = onclick
 
         const boundingRect = this.element.getBoundingClientRect()
         this.element.width = boundingRect.width
@@ -19,6 +24,7 @@ class InteractiveCanvas {
         this.dragAnchor2 = null
         this.initialPinchDistance = 0
         this.initialPinchScale = 0
+        this.possibleClick = true
 
         this.maxScale = 5 * this.scale
         this.minScale = 0.1 * this.scale
@@ -26,12 +32,12 @@ class InteractiveCanvas {
 
         this.element.addEventListener('mousedown', event => this._onMouseDown(event))
         this.element.addEventListener('mousemove', event => this._onMouseMove(event))
-        this.element.addEventListener('mouseup', () => this._onMouseUp())
+        this.element.addEventListener('mouseup', event => this._onMouseUp(event))
         this.element.addEventListener('wheel', event => this._onWheel(event))
 
         this.element.addEventListener('touchstart', event => this._onTouchStart(event))
         this.element.addEventListener('touchmove', event => this._onTouchMove(event))
-        this.element.addEventListener('touchend', () => this._onTouchEnd())
+        this.element.addEventListener('touchend', event => this._onTouchEnd(event))
     }
 
     // Prepare the context transform matrix so that drawing in the unit square draws into the desired region
@@ -41,7 +47,7 @@ class InteractiveCanvas {
         this.context.translate(this.x, this.y)
         this.context.scale(this.scale, this.scale)
     }
-    
+
     /// Return the `{x, y}` coordinates in the virtual unit square coordinates
     convertToUnit(clientX, clientY) {
         const anchor = DragAnchor._fromCanvas(this, null, clientX, clientY)
@@ -61,12 +67,14 @@ class InteractiveCanvas {
     _onMouseDown(event) {
         this.dragAnchor1 = DragAnchor.fromMouse(this, event)
         this.dragAnchor2 = null
+        this.possibleClick = true
     }
 
     _onMouseMove(event) {
         const anchor = this._getDragAnchor(null)
         if (anchor) {
             this._padForAnchor(anchor, DragAnchor.fromMouse(this, event))
+            this.possibleClick = false
         }
     }
 
@@ -75,7 +83,12 @@ class InteractiveCanvas {
         this.y = newAnchor.elementY - anchor.y * this.scale
     }
 
-    _onMouseUp() {
+    _onMouseUp(event) {
+        if (this.possibleClick) {
+            const newAnchor = DragAnchor.fromMouse(this, event)
+            this.onclick(newAnchor.x, newAnchor.y)
+        }
+
         this.dragAnchor1 = null
         this.dragAnchor2 = null
     }
@@ -94,14 +107,17 @@ class InteractiveCanvas {
         if (event.touches.length === 1) {
             this.dragAnchor1 = DragAnchor.fromTouch(this, event.touches[0])
             this.dragAnchor2 = null
+            this.possibleClick = true
         } else if (event.touches.length === 2) {
             this._startPinch(
                 DragAnchor.fromTouch(this, event.touches[0]),
                 DragAnchor.fromTouch(this, event.touches[1]),
             )
+            this.possibleClick = false
         } else {
             this.dragAnchor1 = null
             this.dragAnchor2 = null
+            this.possibleClick = false
         }
     }
 
@@ -132,6 +148,8 @@ class InteractiveCanvas {
                 this.scale = Math.max(this.minScale, Math.min(this.maxScale, this.initialPinchScale * pinchRatio))
             }
         }
+
+        this.possibleClick = false
     }
 
     _startPinch(anchor1, anchor2) {
@@ -141,7 +159,12 @@ class InteractiveCanvas {
         this.initialPinchDistance = anchor1.elementDistanceTo(anchor2)
     }
 
-    _onTouchEnd() {
+    _onTouchEnd(event) {
+        if (this.possibleClick && event.changedTouches.length === 1) {
+            const newAnchor = DragAnchor.fromTouch(this, event.changedTouches[0])
+            this.onclick(newAnchor.x, newAnchor.y)
+        }
+
         this.dragAnchor1 = null
         this.dragAnchor2 = null
     }

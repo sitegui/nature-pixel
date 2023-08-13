@@ -36,7 +36,7 @@ impl Map {
             .get_mut([y, x])
             .context("invalid cell position")?;
 
-        cell.with_color(dbg!(color))?;
+        cell.with_color(color)?;
 
         Ok(())
     }

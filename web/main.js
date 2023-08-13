@@ -1,6 +1,6 @@
 'use strict'
 
-const canvas = new InteractiveCanvas(document.getElementById('canvas'))
+const canvas = new InteractiveCanvas(document.getElementById('canvas'), onClickCanvas)
 const pixelMap = new PixelMap()
 
 function draw() {
@@ -45,13 +45,11 @@ function draw() {
 
 draw()
 
-canvas.element.addEventListener('click', event => {
-    const position = canvas.convertToUnit(event.clientX, event.clientY)
-
-    if (position.x >= 0 && position.x <= 1 && position.y >= 0 && position.y <= 1) {
-        const xIndex = Math.floor(position.x * pixelMap.size)
-        const yIndex = Math.floor(position.y * pixelMap.size)
+function onClickCanvas(x, y) {
+    if (x >= 0 && x <= 1 && y >= 0 && y <= 1) {
+        const xIndex = Math.floor(x * pixelMap.size)
+        const yIndex = Math.floor(y * pixelMap.size)
 
         pixelMap.setCellColor(xIndex, yIndex, 'limegreen')
     }
-})
+}
