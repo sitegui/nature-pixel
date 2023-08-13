@@ -38,6 +38,8 @@ class InteractiveCanvas {
         this.element.addEventListener('touchstart', event => this._onTouchStart(event))
         this.element.addEventListener('touchmove', event => this._onTouchMove(event))
         this.element.addEventListener('touchend', event => this._onTouchEnd(event))
+
+        window.addEventListener('resize', () => this._onResize())
     }
 
     // Prepare the context transform matrix so that drawing in the unit square draws into the desired region
@@ -164,6 +166,23 @@ class InteractiveCanvas {
         this.dragAnchor1 = null
         this.dragAnchor2 = null
         event.preventDefault()
+    }
+
+    /**
+     * Resize the canvas element so that it has 1:1 pixels with the element in the page.
+     * Also, update the offsets so that the virtual content's center stays in the same place
+     * @private
+     */
+    _onResize() {
+        const x = (this.element.width / 2 - this.x) / this.scale
+        const y = (this.element.height / 2 - this.y) / this.scale
+
+        const boundingRect = this.element.getBoundingClientRect()
+        this.x = boundingRect.width / 2 - x * this.scale
+        this.y = boundingRect.height / 2 - y * this.scale
+
+        this.element.width = boundingRect.width
+        this.element.height = boundingRect.height
     }
 }
 
