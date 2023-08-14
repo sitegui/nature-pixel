@@ -1,4 +1,3 @@
-use crate::cell::CellWater;
 use crate::config::Config;
 use crate::map::Map;
 use rand::distributions::Bernoulli;
@@ -9,7 +8,7 @@ use std::time::Duration;
 use tokio::time;
 
 #[derive(Debug)]
-pub struct WaterSystem {
+pub struct WaterCycleSystem {
     min_cycle: Duration,
     max_cycle: Duration,
     evaporation_ratio: f64,
@@ -22,8 +21,8 @@ pub struct WaterSystem {
     atmosphere_water: i32,
 }
 
-impl WaterSystem {
-    pub fn new(config: Arc<Config>, map: Arc<RwLock<Map>>) -> Self {
+impl WaterCycleSystem {
+    pub fn new(config: &Config, map: Arc<RwLock<Map>>) -> Self {
         Self {
             min_cycle: Duration::from_secs(config.water_min_cycle_seconds),
             max_cycle: Duration::from_secs(config.water_max_cycle_seconds),
@@ -61,15 +60,11 @@ impl WaterSystem {
                 let mut map = self.map.write().unwrap();
 
                 for cell in map.cells_mut() {
-                    let drier = match cell.water() {
-                        CellWater::Shallow => CellWater::Empty,
-                        CellWater::Deep => CellWater::Shallow,
-                        _ => continue,
-                    };
-
-                    if random.sample(&mut self.rng) {
-                        cell.set_water(drier);
-                        self.atmosphere_water += 1;
+                    if let Some(drier) = cell.water().drier() {
+                        if random.sample(&mut self.rng) {
+                            cell.set_water(drier);
+                            self.atmosphere_water += 1;
+                        }
                     }
                 }
 
@@ -130,15 +125,11 @@ impl WaterSystem {
             }
 
             let cell = &mut map.cells_mut()[candidate];
-            let wetter = match cell.water() {
-                CellWater::Empty => CellWater::Shallow,
-                CellWater::Shallow => CellWater::Deep,
-                CellWater::Deep => continue,
-            };
-
-            cell.set_water(wetter);
-            *remaining_rain -= 1;
-            *atmosphere_water -= 1;
+            if let Some(wetter) = cell.water().wetter() {
+                cell.set_water(wetter);
+                *remaining_rain -= 1;
+                *atmosphere_water -= 1;
+            }
         }
     }
 
@@ -176,13 +167,13 @@ mod tests {
 
     #[test]
     fn circle() {
-        assert_eq!(WaterSystem::circle(10, 20, 0, 100), vec![[10, 20]]);
+        assert_eq!(WaterCycleSystem::circle(10, 20, 0, 100), vec![[10, 20]]);
         assert_eq!(
-            WaterSystem::circle(10, 20, 1, 100),
+            WaterCycleSystem::circle(10, 20, 1, 100),
             vec![[9, 20], [11, 20], [10, 21], [10, 19]]
         );
         assert_eq!(
-            WaterSystem::circle(10, 20, 2, 100),
+            WaterCycleSystem::circle(10, 20, 2, 100),
             vec![
                 [8, 20],
                 [12, 20],
@@ -196,7 +187,7 @@ mod tests {
         );
 
         assert_eq!(
-            WaterSystem::circle(1, 20, 2, 100),
+            WaterCycleSystem::circle(1, 20, 2, 100),
             vec![
                 [3, 20],
                 [0, 21],
@@ -209,12 +200,12 @@ mod tests {
         );
 
         assert_eq!(
-            WaterSystem::circle(0, 20, 2, 100),
+            WaterCycleSystem::circle(0, 20, 2, 100),
             vec![[2, 20], [0, 22], [0, 18], [1, 21], [1, 19]]
         );
 
         assert_eq!(
-            WaterSystem::circle(98, 20, 2, 100),
+            WaterCycleSystem::circle(98, 20, 2, 100),
             vec![
                 [96, 20],
                 [97, 21],
@@ -227,7 +218,7 @@ mod tests {
         );
 
         assert_eq!(
-            WaterSystem::circle(99, 20, 2, 100),
+            WaterCycleSystem::circle(99, 20, 2, 100),
             vec![[97, 20], [98, 21], [98, 19], [99, 22], [99, 18],]
         );
     }

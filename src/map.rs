@@ -18,7 +18,7 @@ pub struct Map {
 impl Map {
     pub fn new(config: &Config) -> Result<Self> {
         let size = config.map_size;
-        let image = image::open(&config.water_height_map)?;
+        let image = image::open(&config.height_map)?;
 
         ensure!(
             image.dimensions() == (size as u32, size as u32),

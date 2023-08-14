@@ -106,4 +106,25 @@ impl Cell {
     pub fn set_grass(&mut self, grass: CellGrass) {
         self.grass = grass;
     }
+    pub fn height(&self) -> u8 {
+        self.height
+    }
+}
+
+impl CellWater {
+    pub fn drier(self) -> Option<Self> {
+        match self {
+            CellWater::Empty => None,
+            CellWater::Shallow => Some(CellWater::Empty),
+            CellWater::Deep => Some(CellWater::Shallow),
+        }
+    }
+
+    pub fn wetter(self) -> Option<Self> {
+        match self {
+            CellWater::Empty => Some(CellWater::Shallow),
+            CellWater::Shallow => Some(CellWater::Deep),
+            CellWater::Deep => None,
+        }
+    }
 }

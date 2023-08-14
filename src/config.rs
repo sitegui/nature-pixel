@@ -4,18 +4,19 @@ use std::fs;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
-    pub port: u16,
-    pub map_size: usize,
+    pub height_map: String,
     pub long_pooling_seconds: u64,
-    pub water_min_cycle_seconds: u64,
-    pub water_max_cycle_seconds: u64,
+    pub map_size: usize,
+    pub port: u16,
     pub water_evaporation_ratio: f64,
     pub water_evaporation_tick_seconds: u64,
+    pub water_flow_tick_seconds: u64,
+    pub water_in_atmosphere: i32,
+    pub water_max_cycle_seconds: u64,
+    pub water_max_rain_radius: usize,
+    pub water_min_cycle_seconds: u64,
     pub water_rain_ratio: f64,
     pub water_rain_tick_seconds: u64,
-    pub water_max_rain_radius: usize,
-    pub water_in_atmosphere: i32,
-    pub water_height_map: String,
 }
 
 impl Config {
