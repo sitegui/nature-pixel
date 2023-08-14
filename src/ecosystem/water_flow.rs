@@ -19,7 +19,8 @@ struct WaterFlow {
 
 impl WaterFlowSystem {
     pub fn new(config: &Config, map: Arc<RwLock<Map>>) -> Self {
-        let water_flows = Self::determine_water_flows(&map.read().unwrap());
+        let water_flows =
+            Self::determine_water_flows(config.water_flow_max_radius, &map.read().unwrap());
 
         Self {
             map,
@@ -57,8 +58,20 @@ impl WaterFlowSystem {
         }
     }
 
-    /// Determine to which neighbor each cell will flow
-    fn determine_water_flows(map: &Map) -> Vec<WaterFlow> {
+    /// Determine to which neighbors each cell will flow
+    fn determine_water_flows(max_radius: usize, map: &Map) -> Vec<WaterFlow> {
+        let mut flows = Vec::new();
+
+        for radius in (1..=max_radius).rev() {
+            Self::append_water_flows(radius, map, &mut flows);
+        }
+
+        tracing::info!("Prepared {} water flows", flows.len());
+        flows
+    }
+
+    /// Determine to which neighbor at a given radius each cell will flow
+    fn append_water_flows(radius: usize, map: &Map, flows: &mut Vec<WaterFlow>) {
         let cells = map.cells();
         let mut flows = Vec::new();
 
@@ -66,19 +79,15 @@ impl WaterFlowSystem {
             let mut lowest_neighbor_height = cell.height();
             let mut lowest_neighbor_coordinates = (i, j);
 
-            let mut update_neighbor = |coordinates| {
-                if let Some(cell) = cells.get(coordinates) {
-                    if cell.height() < lowest_neighbor_height {
-                        lowest_neighbor_height = cell.height();
-                        lowest_neighbor_coordinates = coordinates;
-                    }
+            let start_i = i.saturating_sub(radius);
+            let end_i = (i + radius + 1).min(map.size());
+            for neighbor_i in start_i..end_i {
+                let height = cells[(neighbor_i, j)].height();
+                if height < lowest_neighbor_height {
+                    lowest_neighbor_height = height;
+                    lowest_neighbor_coordinates = (neighbor_i, j);
                 }
-            };
-
-            update_neighbor((i + 1, j));
-            update_neighbor((i, j + 1));
-            update_neighbor((i.saturating_sub(1), j));
-            update_neighbor((i, j.saturating_sub(1)));
+            }
 
             if lowest_neighbor_coordinates != (i, j) {
                 flows.push(WaterFlow {
@@ -88,6 +97,7 @@ impl WaterFlowSystem {
             }
         }
 
+        tracing::info!("Prepared {} water flows", flows.len());
         flows
     }
 }

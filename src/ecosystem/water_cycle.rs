@@ -23,6 +23,8 @@ pub struct WaterCycleSystem {
 
 impl WaterCycleSystem {
     pub fn new(config: &Config, map: Arc<RwLock<Map>>) -> Self {
+        let size = map.read().unwrap().size() as f64;
+        let atmosphere_water = config.water_in_atmosphere_ratio * size * size;
         Self {
             min_cycle: Duration::from_secs(config.water_min_cycle_seconds),
             max_cycle: Duration::from_secs(config.water_max_cycle_seconds),
@@ -33,7 +35,7 @@ impl WaterCycleSystem {
             max_rain_radius: config.water_max_rain_radius,
             map,
             rng: SmallRng::from_entropy(),
-            atmosphere_water: config.water_in_atmosphere,
+            atmosphere_water: atmosphere_water.round() as i32,
         }
     }
 
