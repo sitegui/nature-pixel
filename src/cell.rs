@@ -6,6 +6,7 @@ pub struct Cell {
     animal: CellAnimal,
     water: CellWater,
     grass: CellGrass,
+    height: u8,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -35,11 +36,12 @@ pub enum CellGrass {
 }
 
 impl Cell {
-    pub fn empty() -> Self {
+    pub fn empty(height: u8) -> Self {
         Cell {
             animal: CellAnimal::Empty,
             water: CellWater::Empty,
             grass: CellGrass::Empty,
+            height,
         }
     }
 

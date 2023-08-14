@@ -1,6 +1,8 @@
 use crate::cell::Cell;
 use crate::cell_color::CellColor;
-use anyhow::{Context, Result};
+use crate::config::Config;
+use anyhow::{ensure, Context, Result};
+use image::{GenericImageView, Pixel};
 use ndarray::Array2;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -14,12 +16,27 @@ pub struct Map {
 }
 
 impl Map {
-    pub fn new(size: usize) -> Self {
-        Map {
+    pub fn new(config: &Config) -> Result<Self> {
+        let size = config.map_size;
+        let image = image::open(&config.water_height_map)?;
+
+        ensure!(
+            image.dimensions() == (size as u32, size as u32),
+            "the height map must be {}x{}",
+            size,
+            size
+        );
+        let cells = Array2::from_shape_fn((size, size), |(i, j)| {
+            let height = image.get_pixel(j as u32, i as u32).to_luma()[0];
+
+            Cell::empty(height)
+        });
+
+        Ok(Map {
             version_id: Self::now(),
-            cells: Array2::from_elem((size, size), Cell::empty()),
+            cells,
             change_notifier: Default::default(),
-        }
+        })
     }
 
     pub fn size(&self) -> usize {

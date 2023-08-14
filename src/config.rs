@@ -15,11 +15,12 @@ pub struct Config {
     pub water_rain_tick_seconds: u64,
     pub water_max_rain_radius: usize,
     pub water_in_atmosphere: i32,
+    pub water_height_map: String,
 }
 
 impl Config {
     pub fn load() -> Result<Self> {
-        let config: Config = serde_json::from_str(&fs::read_to_string("config.json")?)?;
+        let config: Config = serde_json::from_str(&fs::read_to_string("config/config.json")?)?;
         Ok(config)
     }
 }

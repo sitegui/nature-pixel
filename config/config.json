@@ -1,6 +1,6 @@
 {
   "port": 8000,
-  "map_size": 25,
+  "map_size": 50,
   "long_pooling_seconds": 30,
   "water_min_cycle_seconds": 60,
   "water_max_cycle_seconds": 180,
@@ -9,5 +9,6 @@
   "water_rain_ratio": 0.5,
   "water_rain_tick_seconds": 60,
   "water_max_rain_radius": 5,
-  "water_in_atmosphere": 63
+  "water_in_atmosphere": 63,
+  "water_height_map": "config/height-50.png"
 }

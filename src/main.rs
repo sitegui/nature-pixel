@@ -27,7 +27,7 @@ struct State {
 #[tokio::main]
 async fn main() -> Result<()> {
     let config = Arc::new(Config::load()?);
-    let map = Arc::new(RwLock::new(Map::new(config.map_size)));
+    let map = Arc::new(RwLock::new(Map::new(&config)?));
 
     let state = State {
         map: map.clone(),
