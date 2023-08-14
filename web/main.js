@@ -10,6 +10,8 @@ const app = Vue.createApp({
     mounted() {
         this.canvas = new InteractiveCanvas(this.$refs.canvas, (x, y) => this.onClickCanvas(x, y))
         this.pixelMap = new PixelMap(() => this.onMapLoaded())
+        this.lastDrawState = {x: null, y: null, scale: null, version: null}
+
         this.draw()
     },
     methods: {
@@ -17,6 +19,21 @@ const app = Vue.createApp({
          * Redraw the canvas
          */
         draw() {
+            if (
+                this.lastDrawState.x === this.canvas.x &&
+                this.lastDrawState.y === this.canvas.y &&
+                this.lastDrawState.scale === this.canvas.scale &&
+                this.lastDrawState.version === this.pixelMap.versionId
+            ) {
+                return requestAnimationFrame(() => this.draw())
+            }
+            this.lastDrawState = {
+                x: this.canvas.x,
+                y: this.canvas.y,
+                scale: this.canvas.scale,
+                version: this.pixelMap.versionId
+            }
+
             this.canvas.prepareDraw()
 
             const size = this.pixelMap.size
