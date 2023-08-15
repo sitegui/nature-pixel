@@ -18,6 +18,7 @@ pub struct Config {
     pub water_min_cycle_seconds: u64,
     pub water_rain_ratio: f64,
     pub water_rain_tick_seconds: u64,
+    pub water_thickness: u8,
 }
 
 impl Config {

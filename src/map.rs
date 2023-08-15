@@ -3,6 +3,7 @@ use crate::cell_color::CellColor;
 use crate::config::Config;
 use anyhow::{ensure, Context, Result};
 use image::{GenericImageView, Pixel};
+use itertools::Itertools;
 use ndarray::Array2;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -26,11 +27,24 @@ impl Map {
             size,
             size
         );
-        let cells = Array2::from_shape_fn((size, size), |(i, j)| {
+        let mut cells = Array2::from_shape_fn((size, size), |(i, j)| {
             let height = image.get_pixel(j as u32, i as u32).to_luma()[0];
 
             Cell::empty(height)
         });
+
+        // Normalize heights to stretch the full range 0 to 255
+        let (min_height, max_height) = cells
+            .iter()
+            .map(|cell| cell.height())
+            .minmax()
+            .into_option()
+            .context("not empty map")?;
+        let factor = 255.0 / (max_height - min_height) as f64;
+        for cell in &mut cells {
+            let normal_height = (cell.height() - min_height) as f64 * factor;
+            cell.set_height(normal_height.round() as u8);
+        }
 
         Ok(Map {
             version_id: Self::now(),

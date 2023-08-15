@@ -1,3 +1,4 @@
+use crate::cell::CellWater;
 use crate::config::Config;
 use crate::map::Map;
 use ndarray::Array2;
@@ -11,27 +12,39 @@ pub struct WaterFlowSystem {
     water_flows: Array2<WaterFlow>,
     tick_sleep: Duration,
     tick: usize,
+    water_thickness: i16,
 }
 
 #[derive(Debug)]
 struct WaterFlow {
-    /// The cell coordinates that want to receive water from this one, in priority order
-    targets: Box<[(usize, usize)]>,
+    /// The cells that want to receive water from this one, in priority order
+    targets: Box<[WaterFlowTarget]>,
     /// The tick in which this cell last received a water flowing into it. This is used so that
     /// each cell can only give water if it hasn't received water this tick
     last_received_tick: std::cell::Cell<usize>,
 }
 
+#[derive(Debug, Copy, Clone)]
+struct WaterFlowTarget {
+    coordinates: (usize, usize),
+    /// The height difference (positive means target is lower)
+    fall: i16,
+}
+
 impl WaterFlowSystem {
     pub fn new(config: &Config, map: Arc<RwLock<Map>>) -> Self {
-        let water_flows =
-            Self::determine_water_flows(config.water_flow_max_radius, &map.read().unwrap());
+        let water_flows = Self::determine_water_flows(
+            config.water_flow_max_radius,
+            config.water_thickness,
+            &map.read().unwrap(),
+        );
 
         Self {
             map,
             water_flows,
             tick_sleep: Duration::from_secs(config.water_flow_tick_seconds),
             tick: 0,
+            water_thickness: config.water_thickness as i16,
         }
     }
 
@@ -58,13 +71,25 @@ impl WaterFlowSystem {
 
             if let Some(drier) = cells[source].water().drier() {
                 for &target in flow.targets.iter() {
-                    let target_cell = &mut cells[target];
+                    let target_cell = &mut cells[target.coordinates];
                     if let Some(wetter) = target_cell.water().wetter() {
-                        target_cell.set_water(wetter);
-                        cells[source].set_water(drier);
-                        flowed += 1;
-                        self.water_flows[target].last_received_tick.set(this_tick);
-                        break;
+                        let min_fall = match (drier, wetter) {
+                            (CellWater::Empty, CellWater::Shallow) => 0,
+                            (CellWater::Empty, CellWater::Deep) => self.water_thickness,
+                            (CellWater::Shallow, CellWater::Shallow) => -self.water_thickness,
+                            (CellWater::Shallow, CellWater::Deep) => 0,
+                            _ => unreachable!(),
+                        };
+
+                        if target.fall > min_fall {
+                            target_cell.set_water(wetter);
+                            cells[source].set_water(drier);
+                            flowed += 1;
+                            self.water_flows[target.coordinates]
+                                .last_received_tick
+                                .set(this_tick);
+                            break;
+                        }
                     }
                 }
             }
@@ -77,18 +102,30 @@ impl WaterFlowSystem {
     }
 
     /// Determine to which neighbors each cell will flow
-    fn determine_water_flows(max_radius: usize, map: &Map) -> Array2<WaterFlow> {
+    fn determine_water_flows(
+        max_radius: usize,
+        water_thickness: u8,
+        map: &Map,
+    ) -> Array2<WaterFlow> {
         let cells = map.cells();
         let size = map.size();
+        let water_thickness = water_thickness as i16;
+        let mut targets = Vec::new();
 
         Array2::from_shape_fn(map.cells().dim(), |(i, j)| {
-            let height = cells[(i, j)].height();
-            let mut targets = Vec::new();
+            // Water can flow uphill in flooding: deep water cell into empty cell
+            let height = cells[(i, j)].height() as i16;
+            targets.clear();
 
             let mut maybe_add_target = |target, radius| {
-                let target_height = cells[target].height();
-                if target_height < height {
-                    targets.push((radius, target_height, target));
+                let target_height = cells[target].height() as i16;
+                let fall = height - target_height;
+                if fall > -water_thickness {
+                    let flow_target = WaterFlowTarget {
+                        coordinates: target,
+                        fall,
+                    };
+                    targets.push((radius, target_height, flow_target));
                 }
             };
 
@@ -111,7 +148,7 @@ impl WaterFlowSystem {
             targets.sort_by_key(|&(radius, height, _)| (radius, height));
 
             WaterFlow {
-                targets: targets.into_iter().map(|(_, _, target)| target).collect(),
+                targets: targets.iter().map(|&(_, _, target)| target).collect(),
                 last_received_tick: std::cell::Cell::new(0),
             }
         })

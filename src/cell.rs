@@ -109,6 +109,9 @@ impl Cell {
     pub fn height(&self) -> u8 {
         self.height
     }
+    pub fn set_height(&mut self, height: u8) {
+        self.height = height;
+    }
 }
 
 impl CellWater {
