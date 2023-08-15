@@ -1,5 +1,12 @@
 use crate::cell_color::CellColor;
 use anyhow::{bail, Result};
+use cell_animal::CellAnimal;
+use cell_grass::CellGrass;
+use cell_water::CellWater;
+
+pub mod cell_animal;
+pub mod cell_grass;
+pub mod cell_water;
 
 #[derive(Debug, Clone)]
 pub struct Cell {
@@ -7,32 +14,6 @@ pub struct Cell {
     water: CellWater,
     grass: CellGrass,
     height: u8,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum CellAnimal {
-    Empty,
-    Ant,
-    Frog,
-    Snake1,
-    Snake2,
-    Snake3,
-    Dead,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum CellWater {
-    Empty,
-    Shallow,
-    Deep,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum CellGrass {
-    Empty,
-    Dry,
-    Low,
-    High,
 }
 
 impl Cell {
@@ -47,7 +28,7 @@ impl Cell {
 
     pub fn color(&self) -> CellColor {
         match self.animal {
-            CellAnimal::Ant => CellColor::Ant,
+            CellAnimal::Insect => CellColor::Insect,
             CellAnimal::Frog => CellColor::Frog,
             CellAnimal::Snake1 => CellColor::Snake1,
             CellAnimal::Snake2 => CellColor::Snake2,
@@ -73,7 +54,7 @@ impl Cell {
                 self.water = CellWater::Empty;
                 self.grass = CellGrass::Empty;
             }
-            CellColor::Ant => self.animal = CellAnimal::Ant,
+            CellColor::Insect => self.animal = CellAnimal::Insect,
             CellColor::Frog => self.animal = CellAnimal::Frog,
             CellColor::Snake1 => self.animal = CellAnimal::Snake1,
             CellColor::Snake2 => self.animal = CellAnimal::Snake2,
@@ -111,23 +92,5 @@ impl Cell {
     }
     pub fn set_height(&mut self, height: u8) {
         self.height = height;
-    }
-}
-
-impl CellWater {
-    pub fn drier(self) -> Option<Self> {
-        match self {
-            CellWater::Empty => None,
-            CellWater::Shallow => Some(CellWater::Empty),
-            CellWater::Deep => Some(CellWater::Shallow),
-        }
-    }
-
-    pub fn wetter(self) -> Option<Self> {
-        match self {
-            CellWater::Empty => Some(CellWater::Shallow),
-            CellWater::Shallow => Some(CellWater::Deep),
-            CellWater::Deep => None,
-        }
     }
 }

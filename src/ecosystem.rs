@@ -11,7 +11,7 @@ use std::sync::{Arc, RwLock};
 /// Continuously update the map, simulating all the living things
 pub fn spawn_ecosystem(config: Arc<Config>, map: Arc<RwLock<Map>>) {
     tokio::spawn(WaterCycleSystem::new(&config, map.clone()).run());
-    tokio::spawn(WaterFlowSystem::new(&config, map.clone()).run());
+    tokio::spawn(WaterFlowSystem::new(&config, map).run());
 
     // tokio::spawn(async move {
     //     let mut map = map.write().unwrap();

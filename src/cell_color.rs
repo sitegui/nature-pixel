@@ -5,7 +5,7 @@ use std::str::FromStr;
 #[derive(Debug, Clone, Copy)]
 pub enum CellColor {
     Empty,
-    Ant,
+    Insect,
     Frog,
     Snake1,
     Snake2,
@@ -22,7 +22,7 @@ impl CellColor {
     /// All known colors, sorted by their index
     pub const ALL_COLORS: &'static [CellColor] = &[
         CellColor::Empty,
-        CellColor::Ant,
+        CellColor::Insect,
         CellColor::Frog,
         CellColor::Snake1,
         CellColor::Snake2,
@@ -38,7 +38,7 @@ impl CellColor {
     /// Colors that are available for user interaction
     pub const AVAILABLE_COLORS: &'static [CellColor] = &[
         CellColor::Empty,
-        CellColor::Ant,
+        CellColor::Insect,
         CellColor::Frog,
         CellColor::Snake1,
         CellColor::Snake2,
@@ -54,7 +54,7 @@ impl CellColor {
     pub fn as_str(self) -> &'static str {
         match self {
             CellColor::Empty => "#ffffff",
-            CellColor::Ant => "#321210",
+            CellColor::Insect => "#321210",
             CellColor::Frog => "#bce23d",
             CellColor::Snake1 => "#e5cd17",
             CellColor::Snake2 => "#d99e2f",
@@ -75,7 +75,7 @@ impl FromStr for CellColor {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "#ffffff" => Ok(CellColor::Empty),
-            "#321210" => Ok(CellColor::Ant),
+            "#321210" => Ok(CellColor::Insect),
             "#bce23d" => Ok(CellColor::Frog),
             "#e5cd17" => Ok(CellColor::Snake1),
             "#d99e2f" => Ok(CellColor::Snake2),

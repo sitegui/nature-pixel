@@ -13,5 +13,5 @@
   "water_min_cycle_seconds": 60,
   "water_rain_ratio": 0.5,
   "water_rain_tick_seconds": 60,
-  "water_thickness": 16
+  "water_thickness": 8
 }
