@@ -4,12 +4,15 @@
  * A wrapper around canvas that allows the user to pan and zoom using the mouse and the finger.
  * Content drawn in the unit square from (0, 0) to (1, 1) will initially fit the whole canvas
  *
- * The `onclick` callback is called with the virtual units coordinates `x` and `y` of where the click was done
+ * The `onclick` callback is called with the virtual units coordinates `x` and `y` of where the click was done.
+ *
+ * The `onchange` callback is called whenever the canvas is zoomed or panned
  */
 class InteractiveCanvas {
-    constructor(element, onclick) {
+    constructor(element, onclick, onchange) {
         this.element = element
         this.onclick = onclick
+        this.onchange = onchange
 
         const boundingRect = this.element.getBoundingClientRect()
         this.element.width = boundingRect.width
@@ -77,6 +80,7 @@ class InteractiveCanvas {
     _padForAnchor(anchor, newAnchor) {
         this.x = newAnchor.elementX - anchor.x * this.scale
         this.y = newAnchor.elementY - anchor.y * this.scale
+        this.onchange()
     }
 
     _onMouseUp(event) {
@@ -97,6 +101,7 @@ class InteractiveCanvas {
         this.x -= anchor.x * (newScale - this.scale)
         this.y -= anchor.y * (newScale - this.scale)
         this.scale = newScale
+        this.onchange()
     }
 
     _onTouchStart(event) {
@@ -183,6 +188,7 @@ class InteractiveCanvas {
 
         this.element.width = boundingRect.width
         this.element.height = boundingRect.height
+        this.onchange()
     }
 }
 

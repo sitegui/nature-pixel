@@ -13,10 +13,10 @@
 
 <div id="app">
     <div id="availableColors">
-        <span v-for="color in availableColors"
-              :class="{square: true, 'square-selected': color === activeColor}"
-              :style="{backgroundColor: color}"
-              @click="activeColor = color"></span>
+        <span v-for="colorIndex in availableColorIndexes"
+              :class="{square: true, 'square-selected': colorIndex === activeColorIndex}"
+              :style="{backgroundColor: getRgbFromIndex(colorIndex)}"
+              @click="activeColorIndex = colorIndex"></span>
     </div>
 
     <canvas ref="canvas"></canvas>

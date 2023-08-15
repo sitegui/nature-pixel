@@ -1,6 +1,5 @@
-use anyhow::{bail, Error};
-use serde::{Deserialize, Deserializer};
-use std::str::FromStr;
+use anyhow::bail;
+use anyhow::Result;
 
 #[derive(Debug, Clone, Copy)]
 pub enum CellColor {
@@ -51,52 +50,38 @@ impl CellColor {
         self as usize
     }
 
-    pub fn as_str(self) -> &'static str {
+    pub fn as_rgb(self) -> [u8; 3] {
         match self {
-            CellColor::Empty => "#ffffff",
-            CellColor::Insect => "#321210",
-            CellColor::Frog => "#bce23d",
-            CellColor::Snake1 => "#e5cd17",
-            CellColor::Snake2 => "#d99e2f",
-            CellColor::Snake3 => "#b85337",
-            CellColor::DryGrass => "#ab9065",
-            CellColor::LowGrass => "#638256",
-            CellColor::HighGrass => "#1b7448",
-            CellColor::ShallowWater => "#2fa8e8",
-            CellColor::DeepWater => "#094663",
-            CellColor::DeadMatter => "#555555",
+            CellColor::Empty => [255, 255, 255],
+            CellColor::Insect => [50, 18, 16],
+            CellColor::Frog => [188, 226, 61],
+            CellColor::Snake1 => [229, 205, 23],
+            CellColor::Snake2 => [217, 158, 47],
+            CellColor::Snake3 => [184, 83, 55],
+            CellColor::DryGrass => [171, 144, 101],
+            CellColor::LowGrass => [99, 130, 86],
+            CellColor::HighGrass => [27, 116, 72],
+            CellColor::ShallowWater => [47, 168, 232],
+            CellColor::DeepWater => [9, 70, 99],
+            CellColor::DeadMatter => [85, 85, 85],
         }
     }
-}
 
-impl FromStr for CellColor {
-    type Err = Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "#ffffff" => Ok(CellColor::Empty),
-            "#321210" => Ok(CellColor::Insect),
-            "#bce23d" => Ok(CellColor::Frog),
-            "#e5cd17" => Ok(CellColor::Snake1),
-            "#d99e2f" => Ok(CellColor::Snake2),
-            "#b85337" => Ok(CellColor::Snake3),
-            "#ab9065" => Ok(CellColor::DryGrass),
-            "#638256" => Ok(CellColor::LowGrass),
-            "#1b7448" => Ok(CellColor::HighGrass),
-            "#2fa8e8" => Ok(CellColor::ShallowWater),
-            "#094663" => Ok(CellColor::DeepWater),
-            "#555555" => Ok(CellColor::DeadMatter),
-            _ => bail!("invalid color name: {}", s),
+    pub fn try_from_index(index: usize) -> Result<Self> {
+        match index {
+            0 => Ok(CellColor::Empty),
+            1 => Ok(CellColor::Insect),
+            2 => Ok(CellColor::Frog),
+            3 => Ok(CellColor::Snake1),
+            4 => Ok(CellColor::Snake2),
+            5 => Ok(CellColor::Snake3),
+            6 => Ok(CellColor::DryGrass),
+            7 => Ok(CellColor::LowGrass),
+            8 => Ok(CellColor::HighGrass),
+            9 => Ok(CellColor::ShallowWater),
+            10 => Ok(CellColor::DeepWater),
+            11 => Ok(CellColor::DeadMatter),
+            _ => bail!("invalid color index: {}", index),
         }
-    }
-}
-
-impl<'de> Deserialize<'de> for CellColor {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let name = String::deserialize(deserializer)?;
-        name.parse().map_err(serde::de::Error::custom)
     }
 }

@@ -17,8 +17,8 @@ pub struct Request {
 pub struct Response {
     version_id: String,
     size: usize,
-    colors: Vec<&'static str>,
-    available_colors: Vec<&'static str>,
+    colors: Vec<[u8; 3]>,
+    available_color_indexes: Vec<usize>,
     cell_color_indexes: Vec<usize>,
 }
 
@@ -56,11 +56,11 @@ fn prepare_response(map: &Map) -> Json<Response> {
         size: map.size(),
         colors: CellColor::ALL_COLORS
             .iter()
-            .map(|color| color.as_str())
+            .map(|color| color.as_rgb())
             .collect(),
-        available_colors: CellColor::AVAILABLE_COLORS
+        available_color_indexes: CellColor::AVAILABLE_COLORS
             .iter()
-            .map(|color| color.as_str())
+            .map(|color| color.as_index())
             .collect(),
         cell_color_indexes: map
             .cells()

@@ -11,7 +11,7 @@ use std::sync::{Arc, RwLock};
 pub struct Request {
     x_index: usize,
     y_index: usize,
-    color: CellColor,
+    color_index: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -25,7 +25,8 @@ pub async fn set_cell_color(
 ) -> Result<Json<Response>, WebError> {
     let mut map = map.write().unwrap();
     let point = Point::new(request.x_index, request.y_index);
-    map.set_cell_color(point, request.color)
+    let color = CellColor::try_from_index(request.color_index)?;
+    map.set_cell_color(point, color)
         .map_err(WebError::bad_request)?;
 
     Ok(Json(Response {
