@@ -20,7 +20,7 @@ impl AmphibianSystem {
     pub fn new(config: &Config, map: Arc<RwLock<Map>>) -> Self {
         Self(SimpleAnimalSystem::new(
             Duration::from_secs(config.amphibian_tick_seconds),
-            config.amphibian_destination_radius,
+            config.amphibian_eating_radius,
             config.amphibian_mating_radius,
             config.amphibian_destination_radius,
             map,

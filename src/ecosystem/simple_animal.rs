@@ -185,17 +185,17 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
             return None;
         }
 
-        K::walk_candidates(point, simple_animal.direction)
+        let closest_candidates = K::walk_candidates(point, simple_animal.direction)
             .filter(|candidate| {
                 map.cells()
                     .get(candidate.target)
                     .map(|cell| cell.animal().is_empty())
                     .unwrap_or(false)
             })
-            .min_set_by_key(|candidate| candidate.target.distance(destination))
-            .choose(rng)
-            .copied()
-            .map(Change::MoveTo)
+            .min_set_by_key(|candidate| candidate.target.distance(destination));
+
+        tracing::debug!("closest_candidates = {:?}", closest_candidates);
+        closest_candidates.choose(rng).copied().map(Change::MoveTo)
     }
 
     /// Determine a next walking destination, trying to achieve this state's goal

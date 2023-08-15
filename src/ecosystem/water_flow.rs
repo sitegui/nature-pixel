@@ -97,7 +97,7 @@ impl WaterFlowSystem {
         }
 
         if flowed > 0 {
-            tracing::info!("Flowed {} water", flowed);
+            tracing::debug!("Flowed {} water", flowed);
             map.notify_update();
         }
     }

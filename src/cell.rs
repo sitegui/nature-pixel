@@ -61,6 +61,7 @@ impl Cell {
             CellColor::Snake3 => self.animal = CellAnimal::Snake3,
             CellColor::ShallowWater => self.water = CellWater::Shallow,
             CellColor::LowGrass => self.grass = CellGrass::Low,
+            CellColor::DeadMatter => self.animal = CellAnimal::Dead, // TODO: remove it
             _ => {
                 bail!("cannot set such color")
             }

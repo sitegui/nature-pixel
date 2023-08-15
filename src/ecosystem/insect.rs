@@ -20,7 +20,7 @@ impl InsectSystem {
     pub fn new(config: &Config, map: Arc<RwLock<Map>>) -> Self {
         Self(SimpleAnimalSystem::new(
             Duration::from_secs(config.insect_tick_seconds),
-            config.insect_destination_radius,
+            config.insect_eating_radius,
             config.insect_mating_radius,
             config.insect_destination_radius,
             map,
@@ -33,7 +33,7 @@ impl InsectSystem {
 }
 
 impl SimpleAnimalKind for Insect {
-    type WalkCandidates = array::IntoIter<WalkCandidate, 3>;
+    type WalkCandidates = array::IntoIter<WalkCandidate, 2>;
 
     fn get(cell: &Cell) -> Option<&SimpleAnimal> {
         cell.animal().insect().map(|insect| &insect.0)
@@ -47,7 +47,6 @@ impl SimpleAnimalKind for Insect {
         [
             WalkCandidate::new(point, direction.turn_right(), 1),
             WalkCandidate::new(point, direction.turn_left(), 1),
-            WalkCandidate::new(point, direction.turn_over(), 1),
         ]
         .into_iter()
     }
