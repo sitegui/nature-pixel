@@ -1,6 +1,7 @@
 use crate::cell::Cell;
 use crate::cell_color::CellColor;
 use crate::config::Config;
+use crate::point::Point;
 use anyhow::{ensure, Context, Result};
 use image::{GenericImageView, Pixel};
 use itertools::Itertools;
@@ -69,11 +70,8 @@ impl Map {
         &self.version_id
     }
 
-    pub fn set_cell_color(&mut self, x: usize, y: usize, color: CellColor) -> Result<()> {
-        let cell = self
-            .cells
-            .get_mut([y, x])
-            .context("invalid cell position")?;
+    pub fn set_cell_color(&mut self, point: Point, color: CellColor) -> Result<()> {
+        let cell = self.cells.get_mut(point).context("invalid cell position")?;
 
         cell.with_color(color)?;
         self.notify_update();

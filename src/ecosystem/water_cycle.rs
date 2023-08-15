@@ -1,5 +1,7 @@
 use crate::config::Config;
 use crate::map::Map;
+use crate::point::Point;
+use itertools::Itertools;
 use rand::distributions::Bernoulli;
 use rand::prelude::{Distribution, SliceRandom, SmallRng};
 use rand::{Rng, SeedableRng};
@@ -95,8 +97,9 @@ impl WaterCycleSystem {
                 let mut radius = 0;
                 let center_x = self.rng.gen_range(0..map.size());
                 let center_y = self.rng.gen_range(0..map.size());
+                let center = Point::new(center_x, center_y);
                 while remaining_rain > 0 && radius <= self.max_rain_radius {
-                    let mut candidates = Self::circle(center_x, center_y, radius, map.size());
+                    let mut candidates = center.circumference(radius, map.size()).collect_vec();
                     candidates.shuffle(&mut self.rng);
                     Self::add_rain(
                         &mut map,
@@ -117,7 +120,7 @@ impl WaterCycleSystem {
 
     fn add_rain(
         map: &mut Map,
-        candidates: &[[usize; 2]],
+        candidates: &[Point],
         remaining_rain: &mut i32,
         atmosphere_water: &mut i32,
     ) {
@@ -133,95 +136,5 @@ impl WaterCycleSystem {
                 *atmosphere_water -= 1;
             }
         }
-    }
-
-    /// Determine all cells with exactly `radius` taxi-distance of the center
-    fn circle(center_x: usize, center_y: usize, radius: usize, size: usize) -> Vec<[usize; 2]> {
-        if radius == 0 {
-            return vec![[center_x, center_y]];
-        }
-
-        let mut points = Vec::with_capacity(4 * radius);
-        let mut maybe_push = |x: isize, y: isize| {
-            if x >= 0 && x < size as isize && y >= 0 && y < size as isize {
-                points.push([x as usize, y as usize]);
-            }
-        };
-
-        let center_x = center_x as isize;
-        let center_y = center_y as isize;
-        let radius = radius as isize;
-        maybe_push(center_x - radius, center_y);
-        maybe_push(center_x + radius, center_y);
-        for delta_x in (-radius + 1)..radius {
-            let delta_y = radius - delta_x.abs();
-            maybe_push(center_x + delta_x, center_y + delta_y);
-            maybe_push(center_x + delta_x, center_y - delta_y);
-        }
-
-        points
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn circle() {
-        assert_eq!(WaterCycleSystem::circle(10, 20, 0, 100), vec![[10, 20]]);
-        assert_eq!(
-            WaterCycleSystem::circle(10, 20, 1, 100),
-            vec![[9, 20], [11, 20], [10, 21], [10, 19]]
-        );
-        assert_eq!(
-            WaterCycleSystem::circle(10, 20, 2, 100),
-            vec![
-                [8, 20],
-                [12, 20],
-                [9, 21],
-                [9, 19],
-                [10, 22],
-                [10, 18],
-                [11, 21],
-                [11, 19]
-            ]
-        );
-
-        assert_eq!(
-            WaterCycleSystem::circle(1, 20, 2, 100),
-            vec![
-                [3, 20],
-                [0, 21],
-                [0, 19],
-                [1, 22],
-                [1, 18],
-                [2, 21],
-                [2, 19]
-            ]
-        );
-
-        assert_eq!(
-            WaterCycleSystem::circle(0, 20, 2, 100),
-            vec![[2, 20], [0, 22], [0, 18], [1, 21], [1, 19]]
-        );
-
-        assert_eq!(
-            WaterCycleSystem::circle(98, 20, 2, 100),
-            vec![
-                [96, 20],
-                [97, 21],
-                [97, 19],
-                [98, 22],
-                [98, 18],
-                [99, 21],
-                [99, 19]
-            ]
-        );
-
-        assert_eq!(
-            WaterCycleSystem::circle(99, 20, 2, 100),
-            vec![[97, 20], [98, 21], [98, 19], [99, 22], [99, 18],]
-        );
     }
 }

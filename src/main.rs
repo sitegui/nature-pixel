@@ -6,6 +6,7 @@ mod get_map;
 mod map;
 mod set_cell_color;
 mod web_error;
+mod point;
 
 use crate::config::Config;
 use crate::ecosystem::spawn_ecosystem;

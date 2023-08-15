@@ -1,5 +1,6 @@
 use crate::cell_color::CellColor;
 use crate::map::Map;
+use crate::point::Point;
 use crate::web_error::WebError;
 use axum::extract::{Query, State};
 use axum::Json;
@@ -23,7 +24,8 @@ pub async fn set_cell_color(
     State(map): State<Arc<RwLock<Map>>>,
 ) -> Result<Json<Response>, WebError> {
     let mut map = map.write().unwrap();
-    map.set_cell_color(request.x_index, request.y_index, request.color)
+    let point = Point::new(request.x_index, request.y_index);
+    map.set_cell_color(point, request.color)
         .map_err(WebError::bad_request)?;
 
     Ok(Json(Response {

@@ -1,6 +1,7 @@
 use crate::cell::cell_water::CellWater;
 use crate::config::Config;
 use crate::map::Map;
+use crate::point::Point;
 use ndarray::Array2;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -26,7 +27,7 @@ struct WaterFlow {
 
 #[derive(Debug, Copy, Clone)]
 struct WaterFlowTarget {
-    coordinates: (usize, usize),
+    point: Point,
     /// The height difference (positive means target is lower)
     fall: i16,
 }
@@ -71,7 +72,7 @@ impl WaterFlowSystem {
 
             if let Some(drier) = cells[source].water().drier() {
                 for &target in flow.targets.iter() {
-                    let target_cell = &mut cells[target.coordinates];
+                    let target_cell = &mut cells[target.point];
                     if let Some(wetter) = target_cell.water().wetter() {
                         let min_fall = match (drier, wetter) {
                             (CellWater::Empty, CellWater::Shallow) => 0,
@@ -85,7 +86,7 @@ impl WaterFlowSystem {
                             target_cell.set_water(wetter);
                             cells[source].set_water(drier);
                             flowed += 1;
-                            self.water_flows[target.coordinates]
+                            self.water_flows[target.point]
                                 .last_received_tick
                                 .set(this_tick);
                             break;
@@ -112,40 +113,28 @@ impl WaterFlowSystem {
         let water_thickness = water_thickness as i16;
         let mut targets = Vec::new();
 
-        Array2::from_shape_fn(map.cells().dim(), |(i, j)| {
-            // Water can flow uphill in flooding: deep water cell into empty cell
-            let height = cells[(i, j)].height() as i16;
+        Array2::from_shape_fn(map.cells().dim(), |ij| {
+            let point = Point::new_ij(ij);
+            let height = cells[point].height() as i16;
             targets.clear();
 
-            let mut maybe_add_target = |target, radius| {
+            for target in point.circle(max_radius, size) {
                 let target_height = cells[target].height() as i16;
                 let fall = height - target_height;
+                // Water can flow uphill in flooding: deep water cell into empty cell
                 if fall > -water_thickness {
+                    let distance = point.distance(target);
                     let flow_target = WaterFlowTarget {
-                        coordinates: target,
+                        point: target,
                         fall,
                     };
-                    targets.push((radius, target_height, flow_target));
-                }
-            };
-
-            let start_i = i.saturating_sub(max_radius);
-            let end_i = (i + max_radius + 1).min(size);
-            for target_i in start_i..end_i {
-                let delta_i = target_i.abs_diff(i);
-                let max_delta_j = max_radius - delta_i;
-                let start_j = j.saturating_sub(max_delta_j);
-                let end_j = (j + max_delta_j + 1).min(size);
-
-                for target_j in start_j..end_j {
-                    let delta_j = target_j.abs_diff(j);
-                    maybe_add_target((target_i, target_j), delta_i + delta_j);
+                    targets.push((distance, target_height, flow_target));
                 }
             }
 
             // Consider first the targets closer to the cell (lesser radius). In case of a tie,
             // consider first the targets with the least height
-            targets.sort_by_key(|&(radius, height, _)| (radius, height));
+            targets.sort_by_key(|&(distance, height, _)| (distance, height));
 
             WaterFlow {
                 targets: targets.iter().map(|&(_, _, target)| target).collect(),
