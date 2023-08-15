@@ -144,31 +144,28 @@ impl InsectSystem {
         insect: &Insect,
     ) -> Option<Change> {
         let destination = insect.destination?;
-
-        if destination != point {
-            let candidates = [
-                point + insect.direction.turn_right(),
-                point + insect.direction.turn_left(),
-                point + insect.direction.turn_over(),
-            ];
-
-            let step = candidates
-                .into_iter()
-                .filter(|&target| {
-                    let animal = map.cells().get(target).map(|cell| cell.animal());
-
-                    matches!(animal, Some(&CellAnimal::Empty))
-                })
-                .min_set_by_key(|target| target.distance(destination))
-                .choose(rng)
-                .copied();
-
-            if let Some(step) = step {
-                return Some(Change::MoveTo(step));
-            }
+        if destination == point {
+            return None;
         }
 
-        None
+        let candidates = [
+            point + insect.direction.turn_right(),
+            point + insect.direction.turn_left(),
+            point + insect.direction.turn_over(),
+        ];
+
+        candidates
+            .into_iter()
+            .filter(|&target| {
+                map.cells()
+                    .get(target)
+                    .map(|cell| cell.animal().is_empty())
+                    .unwrap_or(false)
+            })
+            .min_set_by_key(|target| target.distance(destination))
+            .choose(rng)
+            .copied()
+            .map(Change::MoveTo)
     }
 
     /// Determine a next walking destination, trying to achieve this state's goal
@@ -244,6 +241,7 @@ impl InsectSystem {
         let mut changed = false;
 
         for (point, change) in changes {
+            tracing::debug!("{:?}: apply {:?}", point, change);
             match change {
                 Change::SearchPartner => {
                     if let Some(insect) = map.cells_mut()[point].animal_mut().insect_mut() {
@@ -303,7 +301,7 @@ impl InsectSystem {
                             from_insect.destination = None;
                         }
 
-                        from_insect.direction = point - target;
+                        from_insect.direction = target - point;
                         mem::swap(from.animal_mut(), to.animal_mut());
                         changed = true;
                     }

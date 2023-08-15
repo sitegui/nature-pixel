@@ -4,9 +4,9 @@ mod config;
 mod ecosystem;
 mod get_map;
 mod map;
+mod point;
 mod set_cell_color;
 mod web_error;
-mod point;
 
 use crate::config::Config;
 use crate::ecosystem::spawn_ecosystem;
@@ -18,6 +18,8 @@ use axum::extract::FromRef;
 use axum::{routing, Router, Server};
 use std::sync::{Arc, RwLock};
 use tower_http::services::ServeDir;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, FromRef, Clone)]
 struct State {
@@ -28,14 +30,17 @@ struct State {
 #[tokio::main]
 async fn main() -> Result<()> {
     let config = Arc::new(Config::load()?);
+    let env_filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::INFO.into())
+        .from_env()?;
+    tracing_subscriber::fmt().with_env_filter(env_filter).init();
+
     let map = Arc::new(RwLock::new(Map::new(&config)?));
 
     let state = State {
         map: map.clone(),
         config: config.clone(),
     };
-
-    tracing_subscriber::fmt().init();
 
     let serve_dir = ServeDir::new("web");
     let app = Router::new()

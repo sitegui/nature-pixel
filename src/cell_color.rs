@@ -63,7 +63,7 @@ impl CellColor {
             CellColor::HighGrass => [27, 116, 72],
             CellColor::ShallowWater => [47, 168, 232],
             CellColor::DeepWater => [9, 70, 99],
-            CellColor::DeadMatter => [85, 85, 85],
+            CellColor::DeadMatter => [123, 123, 123],
         }
     }
 

@@ -1,10 +1,10 @@
 {
-  "height_map": "config/height-100.png",
+  "height_map": "config/height-50.png",
   "insect_destination_radius": 10,
   "insect_mating_radius": 2,
   "insect_tick_seconds": 1,
   "long_pooling_seconds": 30,
-  "map_size": 100,
+  "map_size": 50,
   "port": 8000,
   "water_evaporation_ratio": 0.5,
   "water_evaporation_tick_seconds": 10,
