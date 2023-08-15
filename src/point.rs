@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::ops::{Add, Mul, Range, Sub};
 
 /// Defines a point that may or may not be inside the map space
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct Point {
     pub x: isize,
     pub y: isize,
@@ -55,6 +55,17 @@ impl Point {
             && Self::is_in_valid_range(self.y, map_size as isize)
     }
 
+    /// Return the points up to distance 1 from this one. The points are not necessary valid
+    pub fn surroundings(self) -> [Point; 5] {
+        [
+            Point::new(self.x - 1, self.y),
+            Point::new(self.x, self.y - 1),
+            Point::new(self.x, self.y),
+            Point::new(self.x, self.y + 1),
+            Point::new(self.x + 1, self.y),
+        ]
+    }
+
     /// Iterate over all valid points as far as `radius` from this point. The distance is measured
     /// in taxicab geometry, that is: `abs(delta_x) + abs(delta_y)`.
     ///
@@ -94,6 +105,27 @@ impl Point {
         let delta_x = self.x.abs_diff(another.x);
         let delta_y = self.y.abs_diff(another.y);
         delta_x + delta_y
+    }
+
+    pub fn turn_right(self) -> Self {
+        Point {
+            x: -self.y,
+            y: self.x,
+        }
+    }
+
+    pub fn turn_left(self) -> Self {
+        Point {
+            x: self.y,
+            y: -self.x,
+        }
+    }
+
+    pub fn turn_over(self) -> Self {
+        Point {
+            x: -self.x,
+            y: -self.y,
+        }
     }
 
     fn valid_range(center: isize, radius: isize, map_size: isize) -> Range<isize> {

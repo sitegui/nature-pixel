@@ -5,7 +5,7 @@ use crate::point::Point;
 use anyhow::{ensure, Context, Result};
 use image::{GenericImageView, Pixel};
 use itertools::Itertools;
-use ndarray::Array2;
+use ndarray::{s, Array2};
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::Notify;
@@ -83,16 +83,52 @@ impl Map {
         &self.change_notifier
     }
 
+    pub fn notify_update(&mut self) {
+        self.version_id = Self::now();
+        self.change_notifier.notify_waiters();
+    }
+
+    /// Return exclusive references to two distinct cells.
+    ///
+    /// # Panics
+    /// If the points are the same or out of bounds
+    pub fn two_cells_mut(&mut self, a: Point, b: Point) -> (&mut Cell, &mut Cell) {
+        let (cell_a, cell_b) = self.cells.multi_slice_mut((
+            s![a.y as usize, a.x as usize],
+            s![b.y as usize, b.x as usize],
+        ));
+
+        (cell_a.into_scalar(), cell_b.into_scalar())
+    }
+
+    /// Return exclusive references to three distinct cells.
+    ///
+    /// # Panics
+    /// If the points are the same or out of bounds
+    pub fn three_cells_mut(
+        &mut self,
+        a: Point,
+        b: Point,
+        c: Point,
+    ) -> (&mut Cell, &mut Cell, &mut Cell) {
+        let (cell_a, cell_b, cell_c) = self.cells.multi_slice_mut((
+            s![a.y as usize, a.x as usize],
+            s![b.y as usize, b.x as usize],
+            s![c.y as usize, c.x as usize],
+        ));
+
+        (
+            cell_a.into_scalar(),
+            cell_b.into_scalar(),
+            cell_c.into_scalar(),
+        )
+    }
+
     fn now() -> String {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .expect("must be after epoch")
             .as_nanos()
             .to_string()
-    }
-
-    pub fn notify_update(&mut self) {
-        self.version_id = Self::now();
-        self.change_notifier.notify_waiters();
     }
 }

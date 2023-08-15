@@ -5,6 +5,9 @@ use std::fs;
 #[derive(Debug, Deserialize)]
 pub struct Config {
     pub height_map: String,
+    pub insect_destination_radius: usize,
+    pub insect_mating_radius: usize,
+    pub insect_tick_seconds: u64,
     pub long_pooling_seconds: u64,
     pub map_size: usize,
     pub port: u16,
