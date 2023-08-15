@@ -69,6 +69,7 @@ enum Change {
     Mate { partner: Point, new_born: Point },
     MoveTo(WalkCandidate),
     SetDestination(Point),
+    SearchMatingGround,
 }
 
 impl Default for SimpleAnimal {
@@ -224,12 +225,27 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
             return Change::SetDestination(goal_destination);
         }
 
-        // If no direct goal-fulfilling destination was found, walk to a random far point
-        let destination = point
-            .circumference(destination_radius, map.size())
-            .choose(rng)
-            .expect("must have at least one point");
-        Change::SetDestination(destination)
+        match simple_animal.state {
+            // If no direct goal-fulfilling destination was found, walk to a random far point
+            SimpleAnimalState::SearchFood | SimpleAnimalState::SearchMatingGround => {
+                let destination = point
+                    .circumference(destination_radius, map.size())
+                    .choose(rng)
+                    .expect("must have at least one point");
+
+                Change::SetDestination(destination)
+            }
+            // If no direct goal-fulfilling destination was found, walk to a random far point that
+            // is still a mating ground
+            SimpleAnimalState::SearchPartner => point
+                .circle(destination_radius, map.size())
+                .filter(|&target| Self::check_mating_ground_goal(map, target))
+                .max_set_by_key(|target| target.distance(point))
+                .choose(rng)
+                .copied()
+                .map(Change::SetDestination)
+                .unwrap_or(Change::SearchMatingGround),
+        }
     }
 
     fn check_food_goal(map: &Map, point: Point) -> bool {
@@ -271,6 +287,15 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
             tracing::debug!("{:?}: apply {:?}", point, change);
 
             match change {
+                Change::SearchMatingGround => {
+                    let cell = &mut map.cells_mut()[point];
+                    if let Some(simple_animal) = K::get_mut(cell) {
+                        if simple_animal.state != SimpleAnimalState::SearchMatingGround {
+                            simple_animal.state = SimpleAnimalState::SearchMatingGround;
+                            simple_animal.destination = None;
+                        }
+                    }
+                }
                 Change::SearchPartner => {
                     let cell = &mut map.cells_mut()[point];
                     if let Some(simple_animal) = K::get_mut(cell) {
