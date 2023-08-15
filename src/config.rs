@@ -4,8 +4,13 @@ use std::fs;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {
+    pub amphibian_destination_radius: usize,
+    pub amphibian_eating_radius: usize,
+    pub amphibian_mating_radius: usize,
+    pub amphibian_tick_seconds: u64,
     pub height_map: String,
     pub insect_destination_radius: usize,
+    pub insect_eating_radius: usize,
     pub insect_mating_radius: usize,
     pub insect_tick_seconds: u64,
     pub long_pooling_seconds: u64,

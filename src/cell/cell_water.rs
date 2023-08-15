@@ -21,4 +21,8 @@ impl CellWater {
             CellWater::Deep => None,
         }
     }
+
+    pub fn is_empty(self) -> bool {
+        matches!(self, CellWater::Empty)
+    }
 }

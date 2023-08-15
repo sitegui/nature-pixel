@@ -5,7 +5,7 @@ use anyhow::Result;
 pub enum CellColor {
     Empty,
     Insect,
-    Frog,
+    Amphibian,
     Snake1,
     Snake2,
     Snake3,
@@ -22,7 +22,7 @@ impl CellColor {
     pub const ALL_COLORS: &'static [CellColor] = &[
         CellColor::Empty,
         CellColor::Insect,
-        CellColor::Frog,
+        CellColor::Amphibian,
         CellColor::Snake1,
         CellColor::Snake2,
         CellColor::Snake3,
@@ -38,7 +38,7 @@ impl CellColor {
     pub const AVAILABLE_COLORS: &'static [CellColor] = &[
         CellColor::Empty,
         CellColor::Insect,
-        CellColor::Frog,
+        CellColor::Amphibian,
         CellColor::Snake1,
         CellColor::Snake2,
         CellColor::Snake3,
@@ -54,7 +54,7 @@ impl CellColor {
         match self {
             CellColor::Empty => [255, 255, 255],
             CellColor::Insect => [50, 18, 16],
-            CellColor::Frog => [188, 226, 61],
+            CellColor::Amphibian => [188, 226, 61],
             CellColor::Snake1 => [229, 205, 23],
             CellColor::Snake2 => [217, 158, 47],
             CellColor::Snake3 => [184, 83, 55],
@@ -71,7 +71,7 @@ impl CellColor {
         match index {
             0 => Ok(CellColor::Empty),
             1 => Ok(CellColor::Insect),
-            2 => Ok(CellColor::Frog),
+            2 => Ok(CellColor::Amphibian),
             3 => Ok(CellColor::Snake1),
             4 => Ok(CellColor::Snake2),
             5 => Ok(CellColor::Snake3),

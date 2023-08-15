@@ -1,10 +1,11 @@
+use crate::ecosystem::amphibian::Amphibian;
 use crate::ecosystem::insect::Insect;
 
 #[derive(Debug)]
 pub enum CellAnimal {
     Empty,
     Insect(Box<Insect>),
-    Frog,
+    Amphibian(Box<Amphibian>),
     Snake1,
     Snake2,
     Snake3,

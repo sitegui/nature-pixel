@@ -29,7 +29,7 @@ impl Cell {
     pub fn color(&self) -> CellColor {
         match self.animal {
             CellAnimal::Insect(_) => CellColor::Insect,
-            CellAnimal::Frog => CellColor::Frog,
+            CellAnimal::Amphibian(_) => CellColor::Amphibian,
             CellAnimal::Snake1 => CellColor::Snake1,
             CellAnimal::Snake2 => CellColor::Snake2,
             CellAnimal::Snake3 => CellColor::Snake3,
@@ -55,7 +55,7 @@ impl Cell {
                 self.grass = CellGrass::Empty;
             }
             CellColor::Insect => self.animal = CellAnimal::Insect(Default::default()),
-            CellColor::Frog => self.animal = CellAnimal::Frog,
+            CellColor::Amphibian => self.animal = CellAnimal::Amphibian(Default::default()),
             CellColor::Snake1 => self.animal = CellAnimal::Snake1,
             CellColor::Snake2 => self.animal = CellAnimal::Snake2,
             CellColor::Snake3 => self.animal = CellAnimal::Snake3,
