@@ -30,7 +30,7 @@ class InteractiveCanvas {
         this.possibleClick = true
 
         this.maxScale = 10 * this.scale
-        this.minScale = this.scale
+        this.minScale = 0.9 * this.scale
         this.scrollSensitivity = 0.0005
 
         this.element.addEventListener('mousedown', event => this._onMouseDown(event))

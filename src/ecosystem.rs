@@ -2,6 +2,7 @@ pub mod insect;
 mod water_cycle;
 mod water_flow;
 
+use crate::cell::cell_animal::CellAnimal;
 use crate::config::Config;
 use crate::ecosystem::insect::InsectSystem;
 use crate::ecosystem::water_cycle::WaterCycleSystem;
@@ -13,19 +14,19 @@ use std::sync::{Arc, RwLock};
 pub fn spawn_ecosystem(config: Arc<Config>, map: Arc<RwLock<Map>>) {
     tokio::spawn(InsectSystem::new(&config, map.clone()).run());
     tokio::spawn(WaterCycleSystem::new(&config, map.clone()).run());
-    tokio::spawn(WaterFlowSystem::new(&config, map).run());
+    tokio::spawn(WaterFlowSystem::new(&config, map.clone()).run());
 
-    // tokio::spawn(async move {
-    //     let mut map = map.write().unwrap();
-    //     map.cells_mut()
-    //         .indexed_iter_mut()
-    //         .for_each(|(coords, cell)| {
-    //             if (coords.0 + coords.1) % 2 == 0 {
-    //                 cell.set_water(CellWater::Shallow);
-    //             }
-    //         });
-    //     map.notify_update();
-    // });
+    tokio::spawn(async move {
+        let mut map = map.write().unwrap();
+        map.cells_mut()
+            .indexed_iter_mut()
+            .for_each(|(coords, cell)| {
+                if (coords.0 + coords.1) % 20 == 0 {
+                    *cell.animal_mut() = CellAnimal::Dead;
+                }
+            });
+        map.notify_update();
+    });
 
     // tokio::spawn(async move {
     //     loop {

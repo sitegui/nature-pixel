@@ -241,6 +241,7 @@ impl InsectSystem {
     /// Apply the changes, taking care to re-check if the necessary conditions still hold
     fn apply_changes(&mut self, changes: Vec<(Point, Change)>) {
         let mut map = self.map.write().unwrap();
+        let mut changed = false;
 
         for (point, change) in changes {
             match change {
@@ -249,12 +250,14 @@ impl InsectSystem {
                         if insect.state == InsectState::SearchGrass {
                             insect.state = InsectState::SearchPartner;
                             insect.destination = None;
+                            changed = true;
                         }
                     }
                 }
                 Change::SetDestination(destination) => {
                     if let Some(insect) = map.cells_mut()[point].animal_mut().insect_mut() {
                         insect.destination = Some(destination);
+                        changed = true;
                     }
                 }
                 Change::Eat(target) => {
@@ -267,6 +270,7 @@ impl InsectSystem {
                             insect.state = InsectState::SearchGrass;
                             insect.destination = None;
                             *food.animal_mut() = CellAnimal::Empty;
+                            changed = true;
                         }
                     }
                 }
@@ -285,6 +289,7 @@ impl InsectSystem {
                             partner_1.state = InsectState::SearchFood;
                             partner_2.state = InsectState::SearchFood;
                             *new_born.animal_mut() = CellAnimal::Insect(Default::default());
+                            changed = true;
                         }
                     }
                 }
@@ -300,9 +305,14 @@ impl InsectSystem {
 
                         from_insect.direction = point - target;
                         mem::swap(from.animal_mut(), to.animal_mut());
+                        changed = true;
                     }
                 }
             }
+        }
+
+        if changed {
+            map.notify_update();
         }
     }
 }
