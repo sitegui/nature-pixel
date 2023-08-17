@@ -23,6 +23,7 @@ impl AmphibianSystem {
             config.amphibian_eating_radius,
             config.amphibian_mating_radius,
             config.amphibian_destination_radius,
+            Duration::from_secs(config.amphibian_starvation_delay_seconds),
             map,
         ))
     }

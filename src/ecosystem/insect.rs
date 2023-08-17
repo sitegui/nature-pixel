@@ -23,6 +23,7 @@ impl InsectSystem {
             config.insect_eating_radius,
             config.insect_mating_radius,
             config.insect_destination_radius,
+            Duration::from_secs(config.insect_starvation_delay_seconds),
             map,
         ))
     }

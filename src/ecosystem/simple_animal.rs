@@ -8,7 +8,7 @@ use rand::SeedableRng;
 use std::marker::PhantomData;
 use std::mem;
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::time;
 
 #[derive(Debug)]
@@ -16,6 +16,7 @@ pub struct SimpleAnimal {
     state: SimpleAnimalState,
     direction: Point,
     destination: Option<Point>,
+    last_feeding: Instant,
 }
 
 #[derive(Debug)]
@@ -27,6 +28,7 @@ pub struct SimpleAnimalSystem<K> {
     destination_radius: usize,
     rng: SmallRng,
     _phantom: PhantomData<K>,
+    starvation_delay: Duration,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -70,6 +72,7 @@ enum Change {
     MoveTo(WalkCandidate),
     SetDestination(Point),
     SearchMatingGround,
+    Starve,
 }
 
 impl Default for SimpleAnimal {
@@ -78,6 +81,7 @@ impl Default for SimpleAnimal {
             state: SimpleAnimalState::SearchFood,
             direction: Point::X,
             destination: None,
+            last_feeding: Instant::now(),
         }
     }
 }
@@ -88,6 +92,7 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
         eating_radius: usize,
         mating_radius: usize,
         destination_radius: usize,
+        starvation_delay: Duration,
         map: Arc<RwLock<Map>>,
     ) -> Self {
         Self {
@@ -96,6 +101,7 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
             eating_radius,
             mating_radius,
             destination_radius,
+            starvation_delay,
             rng: SmallRng::from_entropy(),
             _phantom: PhantomData,
         }
@@ -111,35 +117,50 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
 
     /// Determine what should change for each simple animal
     fn determine_changes(&mut self) -> Vec<(Point, Change)> {
+        let now = Instant::now();
         let mut changes = Vec::new();
         let map = self.map.read().unwrap();
 
         for (ij, cell) in map.cells().indexed_iter() {
             if let Some(simple_animal) = K::get(cell) {
                 let point = Point::new_ij(ij);
-                let change = Self::determine_reached_goal(
-                    &mut self.rng,
-                    &map,
-                    point,
-                    simple_animal,
-                    self.eating_radius,
-                    self.mating_radius,
-                )
-                .or_else(|| Self::determine_next_walk(&mut self.rng, &map, point, simple_animal))
-                .unwrap_or_else(|| {
-                    Self::determine_next_destination(
-                        &mut self.rng,
-                        &map,
-                        point,
-                        simple_animal,
-                        self.destination_radius,
-                    )
-                });
+                let change = Self::determine_starvation(self.starvation_delay, now, simple_animal)
+                    .or_else(|| {
+                        Self::determine_reached_goal(
+                            &mut self.rng,
+                            &map,
+                            point,
+                            simple_animal,
+                            self.eating_radius,
+                            self.mating_radius,
+                        )
+                    })
+                    .or_else(|| {
+                        Self::determine_next_walk(&mut self.rng, &map, point, simple_animal)
+                    })
+                    .unwrap_or_else(|| {
+                        Self::determine_next_destination(
+                            &mut self.rng,
+                            &map,
+                            point,
+                            simple_animal,
+                            self.destination_radius,
+                        )
+                    });
                 changes.push((point, change));
             }
         }
 
         changes
+    }
+
+    /// Check if the animal is starving
+    fn determine_starvation(
+        starvation_delay: Duration,
+        now: Instant,
+        simple_animal: &SimpleAnimal,
+    ) -> Option<Change> {
+        (now - simple_animal.last_feeding > starvation_delay).then_some(Change::Starve)
     }
 
     /// Check if the goal of the current state was met
@@ -280,6 +301,7 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
 
     /// Apply the changes, taking care to re-check if the necessary conditions still hold
     fn apply_changes(&mut self, changes: Vec<(Point, Change)>) {
+        let now = Instant::now();
         let mut map = self.map.write().unwrap();
         let mut changed_map = false;
 
@@ -287,6 +309,22 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
             tracing::debug!("{:?}: apply {:?}", point, change);
 
             match change {
+                Change::Starve => {
+                    let cell = &mut map.cells_mut()[point];
+                    if let Some(simple_animal) = K::get_mut(cell) {
+                        match simple_animal.state {
+                            SimpleAnimalState::SearchFood => {
+                                *cell.animal_mut() = CellAnimal::Dead;
+                            }
+                            SimpleAnimalState::SearchMatingGround
+                            | SimpleAnimalState::SearchPartner => {
+                                simple_animal.state = SimpleAnimalState::SearchFood;
+                                simple_animal.last_feeding = now;
+                                simple_animal.destination = None;
+                            }
+                        }
+                    }
+                }
                 Change::SearchMatingGround => {
                     let cell = &mut map.cells_mut()[point];
                     if let Some(simple_animal) = K::get_mut(cell) {
@@ -319,6 +357,7 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
                         if simple_animal.state == SimpleAnimalState::SearchFood {
                             simple_animal.state = SimpleAnimalState::SearchMatingGround;
                             simple_animal.destination = None;
+                            simple_animal.last_feeding = now;
                             *food.animal_mut() = CellAnimal::Empty;
                             changed_map = true;
                         }
