@@ -216,7 +216,6 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
             })
             .min_set_by_key(|candidate| candidate.target.distance(destination));
 
-        tracing::debug!("closest_candidates = {:?}", closest_candidates);
         closest_candidates.choose(rng).copied().map(Change::MoveTo)
     }
 
