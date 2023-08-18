@@ -1,9 +1,9 @@
 use ndarray::{Ix2, NdIndex};
 use std::fmt::Debug;
-use std::ops::{Add, Mul, Range, Sub};
+use std::ops::{Add, Mul, Neg, Range, Sub};
 
 /// Defines a point that may or may not be inside the map space
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub struct Point {
     pub x: isize,
     pub y: isize,
@@ -192,6 +192,14 @@ impl Mul<isize> for Point {
             x: self.x * rhs,
             y: self.y * rhs,
         }
+    }
+}
+
+impl Neg for Point {
+    type Output = Point;
+
+    fn neg(self) -> Self::Output {
+        Point { x: -self.x, y: -self.y }
     }
 }
 

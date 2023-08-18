@@ -1,6 +1,7 @@
 pub mod amphibian;
 pub mod insect;
 mod simple_animal;
+pub mod snake;
 mod water_cycle;
 mod water_flow;
 
@@ -17,6 +18,7 @@ use std::sync::Arc;
 pub fn spawn_ecosystem(config: Arc<Config>, map: Arc<MonitoredRwLock<Map>>) {
     tokio::spawn(InsectSystem::new(&config, map.clone()).run());
     tokio::spawn(AmphibianSystem::new(&config, map.clone()).run());
+    tokio::spawn(SnakeSystem::new(&config, map.clone()).run());
     tokio::spawn(WaterCycleSystem::new(&config, map.clone()).run());
     tokio::spawn(WaterFlowSystem::new(&config, map).run());
 

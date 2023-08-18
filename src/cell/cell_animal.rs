@@ -1,14 +1,13 @@
 use crate::ecosystem::amphibian::Amphibian;
 use crate::ecosystem::insect::Insect;
+use crate::ecosystem::snake::Snake;
 
 #[derive(Debug)]
 pub enum CellAnimal {
     Empty,
     Insect(Box<Insect>),
     Amphibian(Box<Amphibian>),
-    Snake1,
-    Snake2,
-    Snake3,
+    Snake(Box<Snake>),
     Dead,
 }
 
@@ -29,6 +28,13 @@ impl CellAnimal {
     pub fn insect_mut(&mut self) -> Option<&mut Insect> {
         if let CellAnimal::Insect(insect) = self {
             Some(insect)
+        } else {
+            None
+        }
+    }
+    pub fn snake(&self) -> Option<&Snake> {
+        if let CellAnimal::Snake(snake) = self {
+            Some(snake)
         } else {
             None
         }
