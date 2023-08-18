@@ -16,7 +16,7 @@ use tokio::time;
 pub struct SimpleAnimal {
     state: SimpleAnimalState,
     direction: Point,
-    destination: Option<Point>,
+    destination: Option<Destination>,
     last_feeding: Instant,
 }
 
@@ -36,6 +36,18 @@ pub struct SimpleAnimalSystem<K> {
 pub struct WalkCandidate {
     target: Point,
     new_direction: Point,
+}
+
+#[derive(Debug, Copy, Clone)]
+struct Destination {
+    point: Point,
+    kind: DestinationKind,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+enum DestinationKind {
+    Goal,
+    Random,
 }
 
 impl WalkCandidate {
@@ -71,7 +83,7 @@ enum Change {
     SearchPartner,
     Mate { partner: Point, new_born: Point },
     MoveTo(WalkCandidate),
-    SetDestination(Point),
+    SetDestination(Destination),
     SearchMatingGround,
     Starve,
 }
@@ -137,7 +149,13 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
                         )
                     })
                     .or_else(|| {
-                        Self::determine_next_walk(&mut self.rng, &map, point, simple_animal)
+                        Self::determine_next_walk(
+                            &mut self.rng,
+                            &map,
+                            point,
+                            simple_animal,
+                            self.destination_radius,
+                        )
                     })
                     .unwrap_or_else(|| {
                         Self::determine_next_destination(
@@ -202,10 +220,27 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
         map: &Map,
         point: Point,
         simple_animal: &SimpleAnimal,
+        destination_radius: usize,
     ) -> Option<Change> {
         let destination = simple_animal.destination?;
-        if destination == point {
+        if destination.point == point {
             return None;
+        }
+
+        // If wandering, keep looking for a suitable goal destination
+        if destination.kind == DestinationKind::Random {
+            if let Some(goal_destination) = Self::determine_next_goal_destination(
+                rng,
+                map,
+                point,
+                simple_animal,
+                destination_radius,
+            ) {
+                return Some(Change::SetDestination(Destination {
+                    point: goal_destination,
+                    kind: DestinationKind::Goal,
+                }));
+            }
         }
 
         let closest_candidates = K::walk_candidates(point, simple_animal.direction)
@@ -215,23 +250,22 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
                     .map(|cell| cell.animal().is_empty())
                     .unwrap_or(false)
             })
-            .min_set_by_key(|candidate| candidate.target.distance(destination));
+            .min_set_by_key(|candidate| candidate.target.distance(destination.point));
 
         closest_candidates.choose(rng).copied().map(Change::MoveTo)
     }
 
-    /// Determine a next walking destination, trying to achieve this state's goal
-    fn determine_next_destination(
+    /// Determine a next walking destination that achieves this state's goal
+    fn determine_next_goal_destination(
         rng: &mut SmallRng,
         map: &Map,
         point: Point,
         simple_animal: &SimpleAnimal,
         destination_radius: usize,
-    ) -> Change {
+    ) -> Option<Point> {
         let search_circle = point.circle(destination_radius, map.size());
 
-        // Find a random point that fulfil the goal
-        let goal_destination = match simple_animal.state {
+        match simple_animal.state {
             SimpleAnimalState::SearchFood => search_circle
                 .filter(|&target| Self::check_food_goal(map, target))
                 .choose(rng),
@@ -241,9 +275,29 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
             SimpleAnimalState::SearchPartner => search_circle
                 .filter(|&target| Self::check_partner_goal(map, point, target))
                 .choose(rng),
-        };
-        if let Some(goal_destination) = goal_destination {
-            return Change::SetDestination(goal_destination);
+        }
+    }
+
+    /// Determine a next walking destination, trying to achieve this state's goal.
+    /// When no suitable target is found, find a point to wander to
+    fn determine_next_destination(
+        rng: &mut SmallRng,
+        map: &Map,
+        point: Point,
+        simple_animal: &SimpleAnimal,
+        destination_radius: usize,
+    ) -> Change {
+        if let Some(goal_destination) = Self::determine_next_goal_destination(
+            rng,
+            map,
+            point,
+            simple_animal,
+            destination_radius,
+        ) {
+            return Change::SetDestination(Destination {
+                point: goal_destination,
+                kind: DestinationKind::Goal,
+            });
         }
 
         match simple_animal.state {
@@ -254,7 +308,10 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
                     .choose(rng)
                     .expect("must have at least one point");
 
-                Change::SetDestination(destination)
+                Change::SetDestination(Destination {
+                    point: destination,
+                    kind: DestinationKind::Random,
+                })
             }
             // If no direct goal-fulfilling destination was found, walk to a random far point that
             // is still a mating ground
@@ -264,7 +321,12 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
                 .max_set_by_key(|target| target.distance(point))
                 .choose(rng)
                 .copied()
-                .map(Change::SetDestination)
+                .map(|point| {
+                    Change::SetDestination(Destination {
+                        point,
+                        kind: DestinationKind::Random,
+                    })
+                })
                 .unwrap_or(Change::SearchMatingGround),
         }
     }
@@ -386,8 +448,10 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
                     let (from, to) = map.two_cells_mut(point, candidate.target);
 
                     if let (Some(from_insect), true) = (K::get_mut(from), to.animal().is_empty()) {
-                        if from_insect.destination == Some(candidate.target) {
-                            from_insect.destination = None;
+                        if let Some(destination) = from_insect.destination {
+                            if destination.point == candidate.target {
+                                from_insect.destination = None;
+                            }
                         }
 
                         from_insect.direction = candidate.new_direction;
