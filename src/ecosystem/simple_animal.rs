@@ -16,7 +16,7 @@ use tokio::time;
 pub struct SimpleAnimal {
     state: SimpleAnimalState,
     direction: Point,
-    destination: Option<Destination>,
+    destination: Option<SetDestination>,
     last_feeding: Instant,
 }
 
@@ -39,7 +39,7 @@ pub struct WalkCandidate {
 }
 
 #[derive(Debug, Copy, Clone)]
-struct Destination {
+struct SetDestination {
     point: Point,
     kind: DestinationKind,
 }
@@ -81,9 +81,15 @@ enum SimpleAnimalState {
 enum Change {
     Eat(Point),
     SearchPartner,
-    Mate { partner: Point, new_born: Point },
+    Mate {
+        partner: Point,
+        new_born: Point,
+    },
     MoveTo(WalkCandidate),
-    SetDestination(Destination),
+    SetDestination {
+        destination: SetDestination,
+        move_to: Option<WalkCandidate>,
+    },
     SearchMatingGround,
     Starve,
 }
@@ -223,9 +229,6 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
         destination_radius: usize,
     ) -> Option<Change> {
         let destination = simple_animal.destination?;
-        if destination.point == point {
-            return None;
-        }
 
         // If wandering, keep looking for a suitable goal destination
         if destination.kind == DestinationKind::Random {
@@ -236,23 +239,40 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
                 simple_animal,
                 destination_radius,
             ) {
-                return Some(Change::SetDestination(Destination {
-                    point: goal_destination,
-                    kind: DestinationKind::Goal,
-                }));
+                let change = Self::build_set_destination_change(
+                    rng,
+                    map,
+                    point,
+                    simple_animal,
+                    goal_destination,
+                    DestinationKind::Goal,
+                );
+                return Some(change);
             }
         }
 
-        let closest_candidates = K::walk_candidates(point, simple_animal.direction)
+        Self::pick_walk_candidate(rng, map, point, simple_animal.direction, destination.point)
+            .map(Change::MoveTo)
+    }
+
+    /// Pick where to walk to, when starting from a given point and direction
+    fn pick_walk_candidate(
+        rng: &mut SmallRng,
+        map: &Map,
+        point: Point,
+        direction: Point,
+        destination: Point,
+    ) -> Option<WalkCandidate> {
+        let closest_candidates = K::walk_candidates(point, direction)
             .filter(|candidate| {
                 map.cells()
                     .get(candidate.target)
                     .map(|cell| cell.animal().is_empty())
                     .unwrap_or(false)
             })
-            .min_set_by_key(|candidate| candidate.target.distance(destination.point));
+            .min_set_by_key(|candidate| candidate.target.distance(destination));
 
-        closest_candidates.choose(rng).copied().map(Change::MoveTo)
+        closest_candidates.choose(rng).copied()
     }
 
     /// Determine a next walking destination that achieves this state's goal
@@ -294,10 +314,14 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
             simple_animal,
             destination_radius,
         ) {
-            return Change::SetDestination(Destination {
-                point: goal_destination,
-                kind: DestinationKind::Goal,
-            });
+            return Self::build_set_destination_change(
+                rng,
+                map,
+                point,
+                simple_animal,
+                goal_destination,
+                DestinationKind::Goal,
+            );
         }
 
         match simple_animal.state {
@@ -308,10 +332,14 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
                     .choose(rng)
                     .expect("must have at least one point");
 
-                Change::SetDestination(Destination {
-                    point: destination,
-                    kind: DestinationKind::Random,
-                })
+                Self::build_set_destination_change(
+                    rng,
+                    map,
+                    point,
+                    simple_animal,
+                    destination,
+                    DestinationKind::Random,
+                )
             }
             // If no direct goal-fulfilling destination was found, walk to a random far point that
             // is still a mating ground
@@ -322,12 +350,39 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
                 .choose(rng)
                 .copied()
                 .map(|point| {
-                    Change::SetDestination(Destination {
+                    Self::build_set_destination_change(
+                        rng,
+                        map,
                         point,
-                        kind: DestinationKind::Random,
-                    })
+                        simple_animal,
+                        point,
+                        DestinationKind::Random,
+                    )
                 })
                 .unwrap_or(Change::SearchMatingGround),
+        }
+    }
+
+    /// A helper function to create the instance of set destination, that will also try to find a suitable first
+    /// movement
+    fn build_set_destination_change(
+        rng: &mut SmallRng,
+        map: &Map,
+        point: Point,
+        simple_animal: &SimpleAnimal,
+        destination_point: Point,
+        kind: DestinationKind,
+    ) -> Change {
+        let move_to =
+            Self::pick_walk_candidate(rng, map, point, simple_animal.direction, destination_point);
+        let destination = SetDestination {
+            point: destination_point,
+            kind,
+        };
+
+        Change::SetDestination {
+            destination,
+            move_to,
         }
     }
 
@@ -405,10 +460,17 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
                         }
                     }
                 }
-                Change::SetDestination(destination) => {
+                Change::SetDestination {
+                    destination,
+                    move_to,
+                } => {
                     let cell = &mut map.cells_mut()[point];
                     if let Some(simple_animal) = K::get_mut(cell) {
                         simple_animal.destination = Some(destination);
+
+                        if let Some(move_to) = move_to {
+                            Self::apply_move_to(&mut map, point, move_to, &mut changed_map);
+                        }
                     }
                 }
                 Change::Eat(target) => {
@@ -445,25 +507,34 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
                     }
                 }
                 Change::MoveTo(candidate) => {
-                    let (from, to) = map.two_cells_mut(point, candidate.target);
-
-                    if let (Some(from_insect), true) = (K::get_mut(from), to.animal().is_empty()) {
-                        if let Some(destination) = from_insect.destination {
-                            if destination.point == candidate.target {
-                                from_insect.destination = None;
-                            }
-                        }
-
-                        from_insect.direction = candidate.new_direction;
-                        mem::swap(from.animal_mut(), to.animal_mut());
-                        changed_map = true;
-                    }
+                    Self::apply_move_to(&mut map, point, candidate, &mut changed_map)
                 }
             }
         }
 
         if changed_map {
             map.notify_update();
+        }
+    }
+
+    fn apply_move_to(
+        map: &mut Map,
+        point: Point,
+        candidate: WalkCandidate,
+        changed_map: &mut bool,
+    ) {
+        let (from, to) = map.two_cells_mut(point, candidate.target);
+
+        if let (Some(from_insect), true) = (K::get_mut(from), to.animal().is_empty()) {
+            if let Some(destination) = from_insect.destination {
+                if destination.point == candidate.target {
+                    from_insect.destination = None;
+                }
+            }
+
+            from_insect.direction = candidate.new_direction;
+            mem::swap(from.animal_mut(), to.animal_mut());
+            *changed_map = true;
         }
     }
 }

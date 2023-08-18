@@ -3,7 +3,7 @@
   "amphibian_eating_radius": 3,
   "amphibian_mating_radius": 3,
   "amphibian_starvation_delay_seconds": 300,
-  "amphibian_tick_seconds": 5,
+  "amphibian_tick_seconds": 6,
   "height_map": "config/height-50.png",
   "insect_destination_radius": 10,
   "insect_eating_radius": 1,
