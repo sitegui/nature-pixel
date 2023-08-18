@@ -1,13 +1,14 @@
 use crate::cell::cell_animal::CellAnimal;
 use crate::cell::Cell;
 use crate::map::Map;
+use crate::monitored_rwlock::MonitoredRwLock;
 use crate::point::Point;
 use itertools::Itertools;
 use rand::prelude::{IteratorRandom, SliceRandom, SmallRng};
 use rand::SeedableRng;
 use std::marker::PhantomData;
 use std::mem;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::time;
 
@@ -21,7 +22,7 @@ pub struct SimpleAnimal {
 
 #[derive(Debug)]
 pub struct SimpleAnimalSystem<K> {
-    map: Arc<RwLock<Map>>,
+    map: Arc<MonitoredRwLock<Map>>,
     tick_sleep: Duration,
     eating_radius: usize,
     mating_radius: usize,
@@ -93,7 +94,7 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
         mating_radius: usize,
         destination_radius: usize,
         starvation_delay: Duration,
-        map: Arc<RwLock<Map>>,
+        map: Arc<MonitoredRwLock<Map>>,
     ) -> Self {
         Self {
             map,
@@ -119,7 +120,7 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
     fn determine_changes(&mut self) -> Vec<(Point, Change)> {
         let now = Instant::now();
         let mut changes = Vec::new();
-        let map = self.map.read().unwrap();
+        let map = self.map.read(module_path!());
 
         for (ij, cell) in map.cells().indexed_iter() {
             if let Some(simple_animal) = K::get(cell) {
@@ -301,7 +302,7 @@ impl<K: SimpleAnimalKind> SimpleAnimalSystem<K> {
     /// Apply the changes, taking care to re-check if the necessary conditions still hold
     fn apply_changes(&mut self, changes: Vec<(Point, Change)>) {
         let now = Instant::now();
-        let mut map = self.map.write().unwrap();
+        let mut map = self.map.write(module_path!());
         let mut changed_map = false;
 
         for (point, change) in changes {

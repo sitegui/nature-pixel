@@ -1,10 +1,11 @@
 use crate::cell_color::CellColor;
 use crate::config::Config;
 use crate::map::Map;
+use crate::monitored_rwlock::MonitoredRwLock;
 use axum::extract::{Query, State};
 use axum::Json;
 use serde::{Deserialize, Serialize};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time;
 
@@ -24,12 +25,12 @@ pub struct Response {
 
 pub async fn get_map(
     Query(request): Query<Request>,
-    State(map): State<Arc<RwLock<Map>>>,
+    State(map): State<Arc<MonitoredRwLock<Map>>>,
     State(config): State<Arc<Config>>,
 ) -> Json<Response> {
     let change_notifier;
     {
-        let map_lock = map.read().unwrap();
+        let map_lock = map.read(module_path!());
 
         match request.last_version_id {
             Some(last_version_id) if last_version_id == map_lock.version_id() => {
@@ -47,7 +48,7 @@ pub async fn get_map(
     )
     .await;
 
-    prepare_response(&map.read().unwrap())
+    prepare_response(&map.read(module_path!()))
 }
 
 fn prepare_response(map: &Map) -> Json<Response> {

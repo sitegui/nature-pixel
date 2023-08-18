@@ -5,9 +5,10 @@ use crate::ecosystem::simple_animal::{
     SimpleAnimal, SimpleAnimalKind, SimpleAnimalSystem, WalkCandidate,
 };
 use crate::map::Map;
+use crate::monitored_rwlock::MonitoredRwLock;
 use crate::point::Point;
 use std::array;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Debug, Default)]
@@ -17,7 +18,7 @@ pub struct Insect(SimpleAnimal);
 pub struct InsectSystem(SimpleAnimalSystem<Insect>);
 
 impl InsectSystem {
-    pub fn new(config: &Config, map: Arc<RwLock<Map>>) -> Self {
+    pub fn new(config: &Config, map: Arc<MonitoredRwLock<Map>>) -> Self {
         Self(SimpleAnimalSystem::new(
             Duration::from_secs(config.insect_tick_seconds),
             config.insect_eating_radius,

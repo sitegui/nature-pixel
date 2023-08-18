@@ -1,11 +1,12 @@
 use crate::config::Config;
 use crate::map::Map;
+use crate::monitored_rwlock::MonitoredRwLock;
 use crate::point::Point;
 use itertools::Itertools;
 use rand::distributions::Bernoulli;
 use rand::prelude::{Distribution, SliceRandom, SmallRng};
 use rand::{Rng, SeedableRng};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time;
 
@@ -18,14 +19,14 @@ pub struct WaterCycleSystem {
     rain_ratio: f64,
     rain_tick: Duration,
     max_rain_radius: usize,
-    map: Arc<RwLock<Map>>,
+    map: Arc<MonitoredRwLock<Map>>,
     rng: SmallRng,
     atmosphere_water: i32,
 }
 
 impl WaterCycleSystem {
-    pub fn new(config: &Config, map: Arc<RwLock<Map>>) -> Self {
-        let size = map.read().unwrap().size() as f64;
+    pub fn new(config: &Config, map: Arc<MonitoredRwLock<Map>>) -> Self {
+        let size = map.read(module_path!()).size() as f64;
         let atmosphere_water = config.water_in_atmosphere_ratio * size * size;
         Self {
             min_cycle: Duration::from_secs(config.water_min_cycle_seconds),
@@ -61,7 +62,7 @@ impl WaterCycleSystem {
 
         for _ in 0..num_ticks {
             {
-                let mut map = self.map.write().unwrap();
+                let mut map = self.map.write(module_path!());
 
                 for cell in map.cells_mut() {
                     if let Some(drier) = cell.water().drier() {
@@ -90,7 +91,7 @@ impl WaterCycleSystem {
 
         for _ in 0..num_ticks {
             {
-                let mut map = self.map.write().unwrap();
+                let mut map = self.map.write(module_path!());
 
                 let mut remaining_rain =
                     (self.atmosphere_water as f64 * ratio_per_tick).ceil() as i32;

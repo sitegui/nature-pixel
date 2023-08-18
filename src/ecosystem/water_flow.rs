@@ -1,15 +1,16 @@
 use crate::cell::cell_water::CellWater;
 use crate::config::Config;
 use crate::map::Map;
+use crate::monitored_rwlock::MonitoredRwLock;
 use crate::point::Point;
 use ndarray::Array2;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::time;
 
 #[derive(Debug)]
 pub struct WaterFlowSystem {
-    map: Arc<RwLock<Map>>,
+    map: Arc<MonitoredRwLock<Map>>,
     water_flows: Array2<WaterFlow>,
     tick_sleep: Duration,
     tick: usize,
@@ -33,11 +34,11 @@ struct WaterFlowTarget {
 }
 
 impl WaterFlowSystem {
-    pub fn new(config: &Config, map: Arc<RwLock<Map>>) -> Self {
+    pub fn new(config: &Config, map: Arc<MonitoredRwLock<Map>>) -> Self {
         let water_flows = Self::determine_water_flows(
             config.water_flow_max_radius,
             config.water_thickness,
-            &map.read().unwrap(),
+            &map.read(module_path!()),
         );
 
         Self {
@@ -60,7 +61,7 @@ impl WaterFlowSystem {
         self.tick += 1;
 
         let this_tick = self.tick;
-        let mut map = self.map.write().unwrap();
+        let mut map = self.map.write(module_path!());
         let cells = map.cells_mut();
         let mut flowed = 0;
 
