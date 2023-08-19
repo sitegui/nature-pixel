@@ -32,6 +32,12 @@ pub struct CircumferenceIter {
 impl Point {
     pub const X: Point = Point { x: 1, y: 0 };
     pub const Y: Point = Point { x: 0, y: 1 };
+    pub const DIRECTIONS: [Point; 4] = [
+        Point { x: 1, y: 0 },
+        Point { x: 0, y: 1 },
+        Point { x: -1, y: 0 },
+        Point { x: 0, y: -1 },
+    ];
 
     pub fn new<X, Y>(x: X, y: Y) -> Self
     where
@@ -199,7 +205,10 @@ impl Neg for Point {
     type Output = Point;
 
     fn neg(self) -> Self::Output {
-        Point { x: -self.x, y: -self.y }
+        Point {
+            x: -self.x,
+            y: -self.y,
+        }
     }
 }
 

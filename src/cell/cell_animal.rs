@@ -32,6 +32,13 @@ impl CellAnimal {
             None
         }
     }
+    pub fn amphibian(&self) -> Option<&Amphibian> {
+        if let CellAnimal::Amphibian(amphibian) = self {
+            Some(amphibian)
+        } else {
+            None
+        }
+    }
     pub fn snake(&self) -> Option<&Snake> {
         if let CellAnimal::Snake(snake) = self {
             Some(snake)
