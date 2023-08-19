@@ -1,4 +1,5 @@
 use crate::cell_color::CellColor;
+use crate::ecosystem::snake::{Snake, SnakeSpecies};
 use anyhow::{bail, Result};
 use cell_animal::CellAnimal;
 use cell_grass::CellGrass;
@@ -27,12 +28,14 @@ impl Cell {
     }
 
     pub fn color(&self) -> CellColor {
-        match self.animal {
+        match &self.animal {
             CellAnimal::Insect(_) => CellColor::Insect,
             CellAnimal::Amphibian(_) => CellColor::Amphibian,
-            CellAnimal::Snake1 => CellColor::Snake1,
-            CellAnimal::Snake2 => CellColor::Snake2,
-            CellAnimal::Snake3 => CellColor::Snake3,
+            CellAnimal::Snake(snake) => match snake.species() {
+                SnakeSpecies::A => CellColor::SnakeA,
+                SnakeSpecies::B => CellColor::SnakeB,
+                SnakeSpecies::C => CellColor::SnakeC,
+            },
             CellAnimal::Dead => CellColor::DeadMatter,
             CellAnimal::Empty => match self.water {
                 CellWater::Shallow => CellColor::ShallowWater,
@@ -56,9 +59,15 @@ impl Cell {
             }
             CellColor::Insect => self.animal = CellAnimal::Insect(Default::default()),
             CellColor::Amphibian => self.animal = CellAnimal::Amphibian(Default::default()),
-            CellColor::Snake1 => self.animal = CellAnimal::Snake1,
-            CellColor::Snake2 => self.animal = CellAnimal::Snake2,
-            CellColor::Snake3 => self.animal = CellAnimal::Snake3,
+            CellColor::SnakeA => {
+                self.animal = CellAnimal::Snake(Box::new(Snake::new(SnakeSpecies::A)))
+            }
+            CellColor::SnakeB => {
+                self.animal = CellAnimal::Snake(Box::new(Snake::new(SnakeSpecies::B)))
+            }
+            CellColor::SnakeC => {
+                self.animal = CellAnimal::Snake(Box::new(Snake::new(SnakeSpecies::C)))
+            }
             CellColor::ShallowWater => self.water = CellWater::Shallow,
             CellColor::LowGrass => self.grass = CellGrass::Low,
             CellColor::DeadMatter => self.animal = CellAnimal::Dead, // TODO: remove it

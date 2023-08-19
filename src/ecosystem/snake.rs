@@ -3,9 +3,9 @@ use crate::config::Config;
 use crate::map::Map;
 use crate::monitored_rwlock::MonitoredRwLock;
 use crate::point::Point;
-use rand::prelude::{Distribution, SliceRandom, SmallRng};
+use rand::prelude::{SliceRandom, SmallRng};
 use rand::SeedableRng;
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time;
@@ -16,7 +16,7 @@ pub struct Snake {
     segment: Option<SnakeSegment>,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum SnakeSpecies {
     A,
     B,
@@ -26,11 +26,10 @@ pub enum SnakeSpecies {
 #[derive(Debug, Clone, Copy)]
 struct SnakeSegment {
     kind: SnakeSegmentKind,
-    /// The direction to follow in order to get to the next segment. `None` if this is a tail.
     next_segment: Option<Point>,
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 enum SnakeSegmentKind {
     /// The head is a special segment because it's used to actually identify each individual.
     /// Without this distinction, if individuals came too close to each other and had their segments
@@ -67,6 +66,14 @@ enum Change {
         head: Point,
         target: Point,
     },
+    Die(Point),
+}
+
+#[derive(Debug, Default)]
+struct SnakeSegmentSet {
+    heads: HashMap<Point, SnakeSegment>,
+    bodies: HashMap<Point, SnakeSegment>,
+    spare_parts: HashSet<Point>,
 }
 
 impl SnakeSystem {
@@ -97,35 +104,71 @@ impl SnakeSystem {
 
     fn determine_changes(&mut self) -> Vec<Change> {
         let mut changes = Vec::new();
-        let map = self.map.read(module_path!());
-        let mut visited = HashSet::new();
-        let mut maybe_dangling_bodies = HashSet::new();
+        let map = self.map.clone();
+        let map = map.read(module_path!());
 
+        // Index the snakes by their species, kind and position
+        let mut snakes: HashMap<SnakeSpecies, SnakeSegmentSet> = HashMap::default();
         for (ij, cell) in map.cells().indexed_iter() {
             if let CellAnimal::Snake(snake) = cell.animal() {
                 let point = Point::new_ij(ij);
-                if !visited.insert(point) {
-                    // This cell was already handled this tick
-                    continue;
-                }
+                let segment_set = snakes.entry(snake.species).or_default();
 
-                let change = match snake.segment {
-                    None => self
-                        .determine_new_snake(&map, point, snake.species, &mut visited)
-                        .map(Change::NewSnake),
-                    Some(segment) => match segment.kind {
-                        SnakeSegmentKind::Head => self.determine_movement(),
-                        SnakeSegmentKind::Body => {
-                            maybe_dangling_bodies.insert(point);
-                        }
-                    },
-                };
+                match snake.segment {
+                    None => {
+                        segment_set.spare_parts.insert(point);
+                    }
+                    Some(segment) => {
+                        let kind = match segment.kind {
+                            SnakeSegmentKind::Head => &mut segment_set.heads,
+                            SnakeSegmentKind::Body => &mut segment_set.bodies,
+                        };
 
-                if let Some(change) = change {
-                    changes.push(change);
+                        kind.insert(point, segment);
+                    }
                 }
             }
         }
+
+        // Determine the changes for each species
+        for (species, segment_set) in snakes {
+            changes.extend(self.determine_species_changes(&map, species, segment_set));
+        }
+
+        changes
+    }
+
+    fn determine_species_changes(
+        &mut self,
+        map: &Map,
+        species: SnakeSpecies,
+        mut segment_set: SnakeSegmentSet,
+    ) -> Vec<Change> {
+        let mut changes = Vec::new();
+
+        // Determine where to move to each existing snake
+        for (point, head) in segment_set.heads {
+            let tail =
+                self.extract_snake_tail(species, point, head.next_segment, &mut segment_set.bodies);
+
+            match tail {
+                None => {
+                    // This snake is now invalid and dies
+                    changes.push(Change::Die(point));
+                }
+                Some(tail) => {
+                    // TODO
+                }
+            }
+        }
+
+        // Dangling bodies die
+        for point in segment_set.bodies.into_keys() {
+            changes.push(Change::Die(point));
+        }
+
+        // Detect new snakes
+        let spare_parts = &mut segment_set.spare_parts;
 
         changes
     }
@@ -193,38 +236,25 @@ impl SnakeSystem {
 
     /// Find the tail of the snake beginning at a given head. It will only return the tail if the
     /// snake is big enough.
-    fn find_snake_tail(
+    ///
+    /// This will also remove all the referenced body segments from the set, so that they cannot be
+    /// used as part of another snake.
+    fn extract_snake_tail(
         &self,
-        map: &Map,
-        head: Point,
         species: SnakeSpecies,
+        head: Point,
         head_next_segment: Option<Point>,
-        visited: &mut HashSet<Point>,
+        body_segment_set: &mut HashMap<Point, SnakeSegment>,
     ) -> Option<Point> {
         let max_size = self.max_size(species);
         let mut tail = head;
         let mut size = 1;
         let mut next_segment = head_next_segment;
 
-        while let (Some(delta), true) = (next_segment, size < max_size) {
-            let target = tail + delta;
-
-            let snake_segment = map
-                .cells()
-                .get(target)
-                .and_then(|cell| cell.animal().snake())
-                .filter(|snake| snake.species == species)
-                .and_then(|snake| snake.segment)
-                .filter(|segment| segment.kind == SnakeSegmentKind::Body);
-
-            match snake_segment {
+        while let (Some(target), true) = (next_segment, size < max_size) {
+            match body_segment_set.remove(&target) {
                 None => break,
                 Some(snake_segment) => {
-                    // Mark this other cell as visited
-                    if !visited.insert(target) {
-                        break;
-                    }
-
                     tail = target;
                     size += 1;
                     next_segment = snake_segment.next_segment;
@@ -249,5 +279,18 @@ impl SnakeSystem {
             SnakeSpecies::B => self.b_move_ratio,
             SnakeSpecies::C => self.c_move_ratio,
         }
+    }
+}
+
+impl Snake {
+    pub fn new(species: SnakeSpecies) -> Self {
+        Snake {
+            species,
+            segment: None,
+        }
+    }
+
+    pub fn species(&self) -> SnakeSpecies {
+        self.species
     }
 }

@@ -8,6 +8,7 @@ mod water_flow;
 use crate::config::Config;
 use crate::ecosystem::amphibian::AmphibianSystem;
 use crate::ecosystem::insect::InsectSystem;
+use crate::ecosystem::snake::SnakeSystem;
 use crate::ecosystem::water_cycle::WaterCycleSystem;
 use crate::ecosystem::water_flow::WaterFlowSystem;
 use crate::map::Map;
