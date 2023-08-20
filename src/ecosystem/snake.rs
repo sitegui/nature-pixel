@@ -59,8 +59,7 @@ pub struct SnakeSystem {
 enum Change {
     NewSnake(Vec<Point>),
     Move {
-        head: Point,
-        tail: Point,
+        snake: Vec<Point>,
         target: Point,
     },
     Eat {
@@ -165,21 +164,17 @@ impl SnakeSystem {
 
         // Determine where to move to each existing snake
         for (point, head) in segment_set.heads {
-            let tail = self.extract_snake_tail(
-                max_size,
-                point,
-                head.next_segment,
-                &mut segment_set.bodies,
-            );
+            let snake_points =
+                self.extract_snake(max_size, point, head.next_segment, &mut segment_set.bodies);
 
-            match tail {
+            match snake_points {
                 None => {
                     // This snake is now invalid and dies
                     changes.push(Change::Death(point));
                 }
-                Some(tail) => {
+                Some(snake_points) => {
                     if let Some(change) =
-                        self.determine_next_movement(map, species, point, tail, uneaten_preys)
+                        self.determine_next_movement(map, species, snake_points, uneaten_preys)
                     {
                         changes.push(change);
                     }
@@ -196,7 +191,7 @@ impl SnakeSystem {
         let spare_parts = &mut segment_set.spare_parts;
         while let Some(&point) = spare_parts.iter().next() {
             spare_parts.remove(&point);
-            if let Some(snake_points) = self.determine_new_snake(point, max_size, spare_parts) {
+            if let Some(snake_points) = self.determine_new_snake(point, spare_parts) {
                 changes.push(Change::NewSnake(snake_points));
             }
         }
@@ -209,12 +204,13 @@ impl SnakeSystem {
         let mut changed_map = false;
 
         for change in changes {
+            tracing::info!("Apply {:?}", change);
             match change {
                 Change::NewSnake(points) => {
                     self.apply_new_snake(&mut map, &points);
                 }
-                Change::Move { head, tail, target } => {
-                    self.apply_move(&mut map, head, tail, target);
+                Change::Move { snake, target } => {
+                    self.apply_move(&mut map, &snake, target);
                     changed_map = true;
                 }
                 Change::Eat {
@@ -246,17 +242,17 @@ impl SnakeSystem {
     fn determine_new_snake(
         &mut self,
         point: Point,
-        max_size: usize,
         spare_parts: &mut HashSet<Point>,
     ) -> Option<Vec<Point>> {
-        let mut segments = VecDeque::with_capacity(max_size);
+        let snake_size = self.min_size;
+        let mut segments = VecDeque::with_capacity(snake_size);
 
         let mut head = point;
         let mut tail = point;
         segments.push_front(point);
 
         let mut candidates = Vec::with_capacity(8);
-        while segments.len() < max_size {
+        while segments.len() < snake_size {
             candidates.clear();
             for (new_head, base) in [(true, head), (false, tail)] {
                 for direction in Point::DIRECTIONS {
@@ -283,37 +279,36 @@ impl SnakeSystem {
             }
         }
 
-        (segments.len() >= self.min_size).then(|| segments.into())
+        (segments.len() == snake_size).then(|| segments.into())
     }
 
-    /// Find the tail of the snake beginning at a given head. It will only return the tail if the
-    /// snake is big enough.
+    /// Find all the points of the snake beginning at a given head. It will only return the snake if
+    /// it is big enough.
     ///
     /// This will also remove all the referenced body segments from the set, so that they cannot be
     /// used as part of another snake.
-    fn extract_snake_tail(
+    fn extract_snake(
         &self,
         max_size: usize,
         head: Point,
         head_next_segment: Option<Point>,
         body_segment_set: &mut HashMap<Point, SnakeSegment>,
-    ) -> Option<Point> {
-        let mut tail = head;
-        let mut size = 1;
+    ) -> Option<Vec<Point>> {
+        let mut points = Vec::with_capacity(max_size);
+        points.push(head);
         let mut next_segment = head_next_segment;
 
-        while let (Some(target), true) = (next_segment, size < max_size) {
+        while let (Some(target), true) = (next_segment, points.len() < max_size) {
             match body_segment_set.remove(&target) {
                 None => break,
                 Some(snake_segment) => {
-                    tail = target;
-                    size += 1;
+                    points.push(target);
                     next_segment = snake_segment.next_segment;
                 }
             }
         }
 
-        (size >= self.min_size).then_some(tail)
+        (points.len() >= self.min_size).then_some(points)
     }
 
     /// Determine where the snake should next move to
@@ -321,8 +316,7 @@ impl SnakeSystem {
         &mut self,
         map: &Map,
         species: SnakeSpecies,
-        head: Point,
-        tail: Point,
+        snake_points: Vec<Point>,
         uneaten_preys: &mut HashSet<Point>,
     ) -> Option<Change> {
         if !self.rng.gen_bool(self.move_ratio(species)) {
@@ -330,6 +324,7 @@ impl SnakeSystem {
         }
 
         // Find a prey to eat
+        let head = snake_points[0];
         let food = head
             .circle(self.eating_radius, map.size())
             .filter(|target| uneaten_preys.contains(target))
@@ -351,10 +346,47 @@ impl SnakeSystem {
             .iter()
             .copied()
             .min_set_by_key(|prey| prey.distance(head));
-        let prey = closest_preys.choose(&mut self.rng).copied()?;
-        let target = self.find_movement_target(map, head, prey)?;
+        if let Some(prey) = closest_preys.choose(&mut self.rng).copied() {
+            let target = self.find_movement_target(map, head, prey)?;
 
-        Some(Change::Move { head, tail, target })
+            return Some(Change::Move {
+                snake: snake_points,
+                target,
+            });
+        }
+
+        // Wander randomly
+        let directions = if snake_points.len() == 1 {
+            vec![
+                (head + Point::X, 1.0),
+                (head + Point::Y, 1.0),
+                (head - Point::X, 1.0),
+                (head - Point::Y, 1.0),
+            ]
+        } else {
+            let forward = snake_points[0] - snake_points[1];
+            vec![
+                (head + forward, 4.0),
+                (head + forward.turn_right(), 1.0),
+                (head + forward.turn_left(), 1.0),
+            ]
+        };
+        let valid_targets = directions
+            .into_iter()
+            .filter(|&(target, _)| {
+                map.cells()
+                    .get(target)
+                    .map(|cell| cell.animal().is_empty())
+                    .unwrap_or(false)
+            })
+            .collect_vec();
+        valid_targets
+            .choose_weighted(&mut self.rng, |&(_, weight)| weight)
+            .ok()
+            .map(|&(target, _)| Change::Move {
+                snake: snake_points,
+                target,
+            })
     }
 
     /// Find a valid movement that gets the snake closer to the given goal
@@ -397,11 +429,8 @@ impl SnakeSystem {
     }
 
     fn apply_new_snake(&self, map: &mut Map, points: &[Point]) {
-        let species = map.cells()[points[0]]
-            .animal()
-            .snake()
-            .map(|snake| snake.species);
-        let Some(species) = species else {return};
+        let Some(head) = map.cells()[points[0]].animal().snake() else {return};
+        let species = head.species;
 
         // Check invariants for all cells: same snake species and free segment
         let is_valid_snake = points
@@ -431,36 +460,60 @@ impl SnakeSystem {
         }
     }
 
-    fn apply_move(&self, map: &mut Map, head_point: Point, tail_point: Point, target_point: Point) {
-        let (head, tail, target) = map.three_cells_mut(head_point, tail_point, target_point);
-
-        let Some(head) = head.animal_mut().snake_mut() else {return};
-        let tail = tail.animal_mut();
-        let target = target.animal_mut();
-
-        let Some(head_segment) = &mut head.segment else {return};
-        if head_segment.kind != SnakeSegmentKind::Head {
+    fn apply_move(&self, map: &mut Map, snake: &[Point], target_point: Point) {
+        // Check head is valid
+        let Some(head) = map.cells()[snake[0]].animal().snake() else {return};
+        let species = head.species;
+        if !head.is_head() || head.next_segment() != snake.get(1).copied() {
             return;
         }
 
-        let Some(tail_segment) = tail.snake().and_then(|snake| snake.segment) else {return};
-        if tail_segment.kind != SnakeSegmentKind::Body || tail_segment.next_segment.is_some() {
-            return;
+        // Check snake body is valid
+        for (i, &point) in snake.iter().enumerate().skip(1) {
+            match map.cells()[point].animal().snake() {
+                None => return,
+                Some(cell) => {
+                    if cell.species != species
+                        || !cell.is_body()
+                        || cell.next_segment() != snake.get(i + 1).copied()
+                    {
+                        return;
+                    }
+                }
+            }
         }
 
+        // Check target is valid
+        let target = map.cells_mut()[target_point].animal_mut();
         if !target.is_empty() {
             return;
         }
 
-        head_segment.kind = SnakeSegmentKind::Body;
-        *tail = CellAnimal::Empty;
+        // Update cells
         *target = CellAnimal::Snake(Box::new(Snake {
-            species: head.species,
+            species,
             segment: Some(SnakeSegment {
                 kind: SnakeSegmentKind::Head,
-                next_segment: Some(head_point),
+                next_segment: Some(snake[0]),
             }),
         }));
+        if let Some(head) = map.cells_mut()[snake[0]].animal_mut().snake_mut() {
+            if let Some(head) = &mut head.segment {
+                head.kind = SnakeSegmentKind::Body;
+            }
+        }
+        let tail = map.cells_mut()[snake[snake.len() - 1]].animal_mut();
+        *tail = CellAnimal::Empty;
+        let new_tail = if snake.len() == 1 {
+            target_point
+        } else {
+            snake[snake.len() - 2]
+        };
+        if let Some(new_tail) = map.cells_mut()[new_tail].animal_mut().snake_mut() {
+            if let Some(new_tail) = &mut new_tail.segment {
+                new_tail.next_segment = None;
+            }
+        }
     }
 
     fn apply_eat(
@@ -521,5 +574,21 @@ impl Snake {
 
     pub fn species(&self) -> SnakeSpecies {
         self.species
+    }
+
+    fn is_head(&self) -> bool {
+        self.segment
+            .map(|segment| segment.kind == SnakeSegmentKind::Head)
+            .unwrap_or(false)
+    }
+
+    fn is_body(&self) -> bool {
+        self.segment
+            .map(|segment| segment.kind == SnakeSegmentKind::Body)
+            .unwrap_or(false)
+    }
+
+    fn next_segment(&self) -> Option<Point> {
+        self.segment.and_then(|segment| segment.next_segment)
     }
 }
