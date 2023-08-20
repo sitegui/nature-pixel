@@ -46,4 +46,11 @@ impl CellAnimal {
             None
         }
     }
+    pub fn snake_mut(&mut self) -> Option<&mut Snake> {
+        if let CellAnimal::Snake(snake) = self {
+            Some(snake)
+        } else {
+            None
+        }
+    }
 }

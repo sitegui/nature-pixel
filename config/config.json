@@ -19,7 +19,7 @@
   "snake_b_move_ratio": 0.5,
   "snake_c_max_size": 32,
   "snake_c_move_ratio": 0.25,
-  "snake_eating_radius": 10,
+  "snake_eating_radius": 2,
   "snake_min_size": 3,
   "snake_starvation_delay_seconds": 900,
   "snake_tick_seconds": 2,

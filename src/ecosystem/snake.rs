@@ -5,7 +5,7 @@ use crate::monitored_rwlock::MonitoredRwLock;
 use crate::point::Point;
 use itertools::Itertools;
 use rand::prelude::{IteratorRandom, SliceRandom, SmallRng};
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
@@ -65,9 +65,10 @@ enum Change {
     },
     Eat {
         head: Point,
-        target: Point,
+        new_head: Point,
+        food: Point,
     },
-    Die(Point),
+    Death(Point),
 }
 
 #[derive(Debug, Default)]
@@ -75,13 +76,6 @@ struct SnakeSegmentSet {
     heads: HashMap<Point, SnakeSegment>,
     bodies: HashMap<Point, SnakeSegment>,
     spare_parts: HashSet<Point>,
-}
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum PreyStatus {
-    Alive,
-    Eaten,
-    Claimed,
 }
 
 impl SnakeSystem {
@@ -118,7 +112,7 @@ impl SnakeSystem {
         // Index the snakes by their species, kind and position.
         // Also index amphibians, their preys.
         let mut snakes: HashMap<SnakeSpecies, SnakeSegmentSet> = HashMap::default();
-        let mut preys = HashMap::new();
+        let mut uneaten_preys = HashSet::new();
         for (ij, cell) in map.cells().indexed_iter() {
             match cell.animal() {
                 CellAnimal::Snake(snake) => {
@@ -140,7 +134,7 @@ impl SnakeSystem {
                     }
                 }
                 CellAnimal::Amphibian(_) => {
-                    preys.insert(Point::new_ij(ij), PreyStatus::Alive);
+                    uneaten_preys.insert(Point::new_ij(ij));
                 }
                 _ => {}
             }
@@ -148,7 +142,12 @@ impl SnakeSystem {
 
         // Determine the changes for each species
         for (species, segment_set) in snakes {
-            changes.extend(self.determine_species_changes(&map, species, segment_set, &mut preys));
+            changes.extend(self.determine_species_changes(
+                &map,
+                species,
+                segment_set,
+                &mut uneaten_preys,
+            ));
         }
 
         changes
@@ -159,7 +158,7 @@ impl SnakeSystem {
         map: &Map,
         species: SnakeSpecies,
         mut segment_set: SnakeSegmentSet,
-        preys: &mut HashMap<Point, PreyStatus>,
+        uneaten_preys: &mut HashSet<Point>,
     ) -> Vec<Change> {
         let max_size = self.max_size(species);
         let mut changes = Vec::new();
@@ -176,10 +175,12 @@ impl SnakeSystem {
             match tail {
                 None => {
                     // This snake is now invalid and dies
-                    changes.push(Change::Die(point));
+                    changes.push(Change::Death(point));
                 }
                 Some(tail) => {
-                    if let Some(change) = self.determine_next_movement(map, point, tail, preys) {
+                    if let Some(change) =
+                        self.determine_next_movement(map, species, point, tail, uneaten_preys)
+                    {
                         changes.push(change);
                     }
                 }
@@ -188,7 +189,7 @@ impl SnakeSystem {
 
         // Dangling bodies die
         for point in segment_set.bodies.into_keys() {
-            changes.push(Change::Die(point));
+            changes.push(Change::Death(point));
         }
 
         // Detect new snakes
@@ -204,7 +205,36 @@ impl SnakeSystem {
     }
 
     fn apply_changes(&self, changes: Vec<Change>) {
-        todo!()
+        let mut map = self.map.write(module_path!());
+        let mut changed_map = false;
+
+        for change in changes {
+            match change {
+                Change::NewSnake(points) => {
+                    self.apply_new_snake(&mut map, &points);
+                }
+                Change::Move { head, tail, target } => {
+                    self.apply_move(&mut map, head, tail, target);
+                    changed_map = true;
+                }
+                Change::Eat {
+                    head,
+                    new_head,
+                    food,
+                } => {
+                    self.apply_eat(&mut map, head, new_head, food);
+                    changed_map = true;
+                }
+                Change::Death(point) => {
+                    self.apply_death(&mut map, point);
+                    changed_map = true;
+                }
+            }
+        }
+
+        if changed_map {
+            map.notify_update();
+        }
     }
 
     /// Find a new snake that contains the given `point`. The snake orientation will be randomly
@@ -290,30 +320,45 @@ impl SnakeSystem {
     fn determine_next_movement(
         &mut self,
         map: &Map,
+        species: SnakeSpecies,
         head: Point,
         tail: Point,
-        preys: &mut HashMap<Point, PreyStatus>,
+        uneaten_preys: &mut HashSet<Point>,
     ) -> Option<Change> {
+        if !self.rng.gen_bool(self.move_ratio(species)) {
+            return None;
+        }
+
         // Find a prey to eat
         let food = head
             .circle(self.eating_radius, map.size())
-            .filter(|target| {
-                matches!(
-                    preys.get(target),
-                    Some(PreyStatus::Alive | PreyStatus::Claimed)
-                )
-            })
+            .filter(|target| uneaten_preys.contains(target))
             .choose(&mut self.rng);
 
-        // Find the closest unclaimed prey
-        let closest_preys = unclaimed_preys
+        if let Some(food) = food {
+            if let Some(new_head) = self.find_movement_target(map, head, food) {
+                uneaten_preys.remove(&food);
+                return Some(Change::Eat {
+                    head,
+                    food,
+                    new_head,
+                });
+            }
+        }
+
+        // Find the closest prey
+        let closest_preys = uneaten_preys
             .iter()
             .copied()
             .min_set_by_key(|prey| prey.distance(head));
         let prey = closest_preys.choose(&mut self.rng).copied()?;
-        unclaimed_preys.remove(&prey);
+        let target = self.find_movement_target(map, head, prey)?;
 
-        // Take a valid movement that gets the snake closer to it
+        Some(Change::Move { head, tail, target })
+    }
+
+    /// Find a valid movement that gets the snake closer to the given goal
+    fn find_movement_target(&mut self, map: &Map, head: Point, goal: Point) -> Option<Point> {
         let best_moves = Point::DIRECTIONS
             .into_iter()
             .map(|direction| head + direction)
@@ -323,10 +368,16 @@ impl SnakeSystem {
                     .map(|cell| cell.animal().is_empty())
                     .unwrap_or(false)
             })
-            .min_set_by_key(|target| target.distance(prey));
-        let target = best_moves.choose(&mut self.rng).copied()?;
+            .min_set_by_key(|target| target.distance(goal));
 
-        Some(Change::Move { head, tail, target })
+        let target = best_moves.choose(&mut self.rng).copied();
+        tracing::debug!(
+            "find_movement_target for {:?} towards {:?} = {:?}",
+            head,
+            goal,
+            target
+        );
+        target
     }
 
     fn max_size(&self, species: SnakeSpecies) -> usize {
@@ -343,6 +394,120 @@ impl SnakeSystem {
             SnakeSpecies::B => self.b_move_ratio,
             SnakeSpecies::C => self.c_move_ratio,
         }
+    }
+
+    fn apply_new_snake(&self, map: &mut Map, points: &[Point]) {
+        let species = map.cells()[points[0]]
+            .animal()
+            .snake()
+            .map(|snake| snake.species);
+        let Some(species) = species else {return};
+
+        // Check invariants for all cells: same snake species and free segment
+        let is_valid_snake = points
+            .iter()
+            .map(|&point| map.cells()[point].animal().snake())
+            .all(|snake| match snake {
+                None => false,
+                Some(snake) => snake.species == species && snake.segment.is_none(),
+            });
+
+        if !is_valid_snake {
+            return;
+        }
+
+        for (i, &point) in points.iter().enumerate() {
+            if let Some(snake) = map.cells_mut()[point].animal_mut().snake_mut() {
+                let kind = if i == 0 {
+                    SnakeSegmentKind::Head
+                } else {
+                    SnakeSegmentKind::Body
+                };
+                snake.segment = Some(SnakeSegment {
+                    kind,
+                    next_segment: points.get(i + 1).copied(),
+                });
+            }
+        }
+    }
+
+    fn apply_move(&self, map: &mut Map, head_point: Point, tail_point: Point, target_point: Point) {
+        let (head, tail, target) = map.three_cells_mut(head_point, tail_point, target_point);
+
+        let Some(head) = head.animal_mut().snake_mut() else {return};
+        let tail = tail.animal_mut();
+        let target = target.animal_mut();
+
+        let Some(head_segment) = &mut head.segment else {return};
+        if head_segment.kind != SnakeSegmentKind::Head {
+            return;
+        }
+
+        let Some(tail_segment) = tail.snake().and_then(|snake| snake.segment) else {return};
+        if tail_segment.kind != SnakeSegmentKind::Body || tail_segment.next_segment.is_some() {
+            return;
+        }
+
+        if !target.is_empty() {
+            return;
+        }
+
+        head_segment.kind = SnakeSegmentKind::Body;
+        *tail = CellAnimal::Empty;
+        *target = CellAnimal::Snake(Box::new(Snake {
+            species: head.species,
+            segment: Some(SnakeSegment {
+                kind: SnakeSegmentKind::Head,
+                next_segment: Some(head_point),
+            }),
+        }));
+    }
+
+    fn apply_eat(
+        &self,
+        map: &mut Map,
+        head_point: Point,
+        new_head_point: Point,
+        food_point: Point,
+    ) {
+        let (head, new_head, food) = map.three_cells_mut(head_point, new_head_point, food_point);
+
+        let Some(head) = head.animal_mut().snake_mut() else {return};
+        let new_head = new_head.animal_mut();
+        let food = food.animal_mut();
+
+        let Some(head_segment) = &mut head.segment else {return};
+        if head_segment.kind != SnakeSegmentKind::Head {
+            return;
+        }
+
+        if !new_head.is_empty() {
+            return;
+        }
+
+        if food.amphibian().is_none() {
+            return;
+        }
+
+        head_segment.kind = SnakeSegmentKind::Body;
+        *new_head = CellAnimal::Snake(Box::new(Snake {
+            species: head.species,
+            segment: Some(SnakeSegment {
+                kind: SnakeSegmentKind::Head,
+                next_segment: Some(head_point),
+            }),
+        }));
+        *food = CellAnimal::Empty;
+    }
+
+    fn apply_death(&self, map: &mut Map, point: Point) {
+        let cell = map.cells_mut()[point].animal_mut();
+
+        if cell.snake().is_none() {
+            return;
+        }
+
+        *cell = CellAnimal::Dead;
     }
 }
 
