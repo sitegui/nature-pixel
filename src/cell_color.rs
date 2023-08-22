@@ -44,7 +44,6 @@ impl CellColor {
         CellColor::SnakeC,
         CellColor::LowGrass,
         CellColor::ShallowWater,
-        CellColor::DeadMatter,
     ];
 
     pub fn as_index(self) -> usize {
