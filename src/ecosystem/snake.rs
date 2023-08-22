@@ -173,9 +173,13 @@ impl SnakeSystem {
                     changes.push(Change::Death(point));
                 }
                 Some(snake_points) => {
-                    if let Some(change) =
-                        self.determine_next_movement(map, species, snake_points, uneaten_preys)
-                    {
+                    if let Some(change) = self.determine_next_movement(
+                        map,
+                        species,
+                        snake_points,
+                        uneaten_preys,
+                        max_size,
+                    ) {
                         changes.push(change);
                     }
                 }
@@ -204,7 +208,6 @@ impl SnakeSystem {
         let mut changed_map = false;
 
         for change in changes {
-            tracing::info!("Apply {:?}", change);
             match change {
                 Change::NewSnake(points) => {
                     self.apply_new_snake(&mut map, &points);
@@ -318,44 +321,60 @@ impl SnakeSystem {
         species: SnakeSpecies,
         snake_points: Vec<Point>,
         uneaten_preys: &mut HashSet<Point>,
+        max_size: usize,
     ) -> Option<Change> {
         if !self.rng.gen_bool(self.move_ratio(species)) {
             return None;
         }
 
-        // Find a prey to eat
-        let head = snake_points[0];
-        let food = head
-            .circle(self.eating_radius, map.size())
-            .filter(|target| uneaten_preys.contains(target))
-            .choose(&mut self.rng);
+        if snake_points.len() < max_size {
+            // Find a prey to eat
+            let head = snake_points[0];
+            if let Some(change) = self.determine_eat_nearby_prey(map, uneaten_preys, head) {
+                return Some(change);
+            }
 
-        if let Some(food) = food {
-            if let Some(new_head) = self.find_movement_target(map, head, food) {
-                uneaten_preys.remove(&food);
-                return Some(Change::Eat {
-                    head,
-                    food,
-                    new_head,
+            // Find the closest prey
+            let closest_preys = uneaten_preys
+                .iter()
+                .copied()
+                .min_set_by_key(|prey| prey.distance(head));
+            if let Some(prey) = closest_preys.choose(&mut self.rng).copied() {
+                let target = self.find_movement_target(map, head, prey)?;
+
+                return Some(Change::Move {
+                    snake: snake_points,
+                    target,
                 });
             }
         }
 
-        // Find the closest prey
-        let closest_preys = uneaten_preys
-            .iter()
-            .copied()
-            .min_set_by_key(|prey| prey.distance(head));
-        if let Some(prey) = closest_preys.choose(&mut self.rng).copied() {
-            let target = self.find_movement_target(map, head, prey)?;
+        self.determine_random_walk(map, snake_points)
+    }
 
-            return Some(Change::Move {
-                snake: snake_points,
-                target,
-            });
-        }
+    /// Determine if can eat a nearby prey
+    fn determine_eat_nearby_prey(
+        &mut self,
+        map: &Map,
+        uneaten_preys: &mut HashSet<Point>,
+        head: Point,
+    ) -> Option<Change> {
+        let food = head
+            .circle(self.eating_radius, map.size())
+            .filter(|target| uneaten_preys.contains(target))
+            .choose(&mut self.rng)?;
 
-        // Wander randomly
+        let new_head = self.find_movement_target(map, head, food)?;
+        uneaten_preys.remove(&food);
+        Some(Change::Eat {
+            head,
+            food,
+            new_head,
+        })
+    }
+
+    fn determine_random_walk(&mut self, map: &Map, snake_points: Vec<Point>) -> Option<Change> {
+        let head = snake_points[0];
         let directions = if snake_points.len() == 1 {
             vec![
                 (head + Point::X, 1.0),
@@ -380,6 +399,7 @@ impl SnakeSystem {
                     .unwrap_or(false)
             })
             .collect_vec();
+
         valid_targets
             .choose_weighted(&mut self.rng, |&(_, weight)| weight)
             .ok()
