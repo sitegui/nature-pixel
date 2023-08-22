@@ -8,7 +8,7 @@ use rand::prelude::{IteratorRandom, SliceRandom, SmallRng};
 use rand::{Rng, SeedableRng};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::time;
 
 #[derive(Debug)]
@@ -35,7 +35,9 @@ enum SnakeSegmentKind {
     /// The head is a special segment because it's used to actually identify each individual.
     /// Without this distinction, if individuals came too close to each other and had their segments
     /// well aligned, they would be re-interpreted as one.
-    Head,
+    Head {
+        last_feeding: Instant,
+    },
     Body,
 }
 
@@ -58,6 +60,7 @@ pub struct SnakeSystem {
 #[derive(Debug)]
 enum Change {
     NewSnake(Vec<Point>),
+    Starve(Vec<Point>),
     Move {
         snake: Vec<Point>,
         target: Point,
@@ -124,7 +127,7 @@ impl SnakeSystem {
                         }
                         Some(segment) => {
                             let kind = match segment.kind {
-                                SnakeSegmentKind::Head => &mut segment_set.heads,
+                                SnakeSegmentKind::Head { .. } => &mut segment_set.heads,
                                 SnakeSegmentKind::Body => &mut segment_set.bodies,
                             };
 
@@ -161,6 +164,7 @@ impl SnakeSystem {
     ) -> Vec<Change> {
         let max_size = self.max_size(species);
         let mut changes = Vec::new();
+        let now = Instant::now();
 
         // Determine where to move to each existing snake
         for (point, head) in segment_set.heads {
@@ -173,13 +177,19 @@ impl SnakeSystem {
                     changes.push(Change::Death(point));
                 }
                 Some(snake_points) => {
-                    if let Some(change) = self.determine_next_movement(
-                        map,
-                        species,
-                        snake_points,
-                        uneaten_preys,
-                        max_size,
-                    ) {
+                    let change =
+                        self.determine_starvation(now, head, &snake_points)
+                            .or_else(|| {
+                                self.determine_next_movement(
+                                    map,
+                                    species,
+                                    snake_points,
+                                    uneaten_preys,
+                                    max_size,
+                                )
+                            });
+
+                    if let Some(change) = change {
                         changes.push(change);
                     }
                 }
@@ -226,6 +236,10 @@ impl SnakeSystem {
                 }
                 Change::Death(point) => {
                     self.apply_death(&mut map, point);
+                    changed_map = true;
+                }
+                Change::Starve(points) => {
+                    self.apply_starvation(&mut map, points);
                     changed_map = true;
                 }
             }
@@ -312,6 +326,22 @@ impl SnakeSystem {
         }
 
         (points.len() >= self.min_size).then_some(points)
+    }
+
+    /// Check if the snake is starving
+    fn determine_starvation(
+        &self,
+        now: Instant,
+        head: SnakeSegment,
+        snake_points: &[Point],
+    ) -> Option<Change> {
+        if let SnakeSegmentKind::Head { last_feeding } = head.kind {
+            if now - last_feeding > self.starvation_delay {
+                return Some(Change::Starve(snake_points.to_vec()));
+            }
+        }
+
+        None
     }
 
     /// Determine where the snake should next move to
@@ -468,7 +498,9 @@ impl SnakeSystem {
         for (i, &point) in points.iter().enumerate() {
             if let Some(snake) = map.cells_mut()[point].animal_mut().snake_mut() {
                 let kind = if i == 0 {
-                    SnakeSegmentKind::Head
+                    SnakeSegmentKind::Head {
+                        last_feeding: Instant::now(),
+                    }
                 } else {
                     SnakeSegmentKind::Body
                 };
@@ -484,9 +516,19 @@ impl SnakeSystem {
         // Check head is valid
         let Some(head) = map.cells()[snake[0]].animal().snake() else {return};
         let species = head.species;
-        if !head.is_head() || head.next_segment() != snake.get(1).copied() {
-            return;
-        }
+        let last_feeding = match head.segment {
+            None => return,
+            Some(head_segment) => {
+                if head_segment.next_segment != snake.get(1).copied() {
+                    return;
+                }
+
+                match head_segment.kind {
+                    SnakeSegmentKind::Body => return,
+                    SnakeSegmentKind::Head { last_feeding } => last_feeding,
+                }
+            }
+        };
 
         // Check snake body is valid
         for (i, &point) in snake.iter().enumerate().skip(1) {
@@ -513,7 +555,7 @@ impl SnakeSystem {
         *target = CellAnimal::Snake(Box::new(Snake {
             species,
             segment: Some(SnakeSegment {
-                kind: SnakeSegmentKind::Head,
+                kind: SnakeSegmentKind::Head { last_feeding },
                 next_segment: Some(snake[0]),
             }),
         }));
@@ -550,7 +592,7 @@ impl SnakeSystem {
         let food = food.animal_mut();
 
         let Some(head_segment) = &mut head.segment else {return};
-        if head_segment.kind != SnakeSegmentKind::Head {
+        if !matches!(head_segment.kind, SnakeSegmentKind::Head { .. }) {
             return;
         }
 
@@ -566,7 +608,9 @@ impl SnakeSystem {
         *new_head = CellAnimal::Snake(Box::new(Snake {
             species: head.species,
             segment: Some(SnakeSegment {
-                kind: SnakeSegmentKind::Head,
+                kind: SnakeSegmentKind::Head {
+                    last_feeding: Instant::now(),
+                },
                 next_segment: Some(head_point),
             }),
         }));
@@ -582,6 +626,12 @@ impl SnakeSystem {
 
         *cell = CellAnimal::Dead;
     }
+
+    fn apply_starvation(&self, map: &mut Map, points: Vec<Point>) {
+        for point in points {
+            self.apply_death(map, point);
+        }
+    }
 }
 
 impl Snake {
@@ -594,12 +644,6 @@ impl Snake {
 
     pub fn species(&self) -> SnakeSpecies {
         self.species
-    }
-
-    fn is_head(&self) -> bool {
-        self.segment
-            .map(|segment| segment.kind == SnakeSegmentKind::Head)
-            .unwrap_or(false)
     }
 
     fn is_body(&self) -> bool {
